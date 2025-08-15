@@ -1,97 +1,248 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# OneDay Chat 📱
 
-# Getting Started
+> 자정에 사라지는 익명 채팅 앱
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## 🌙 프로젝트 컨셉
 
-## Step 1: Start Metro
+**"하루 한정 익명 채팅"** - 마치 신데렐라처럼 자정에 모든 것이 사라지는 특별한 채팅 경험
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+### 핵심 아이디어
+- **24시간 제한**: 자정이 되면 대화방 자동 종료 및 대화 내용 삭제
+- **완전 익명**: 개인정보 저장 없음, 로그인 불필요
+- **1:1 매칭**: 남녀노소 구분 없이 두 명이 랜덤 연결
+- **제한된 연결**: 1대의 기기당 대화방 개수 제한
+- **휘발성 대화**: 대화 내용 영구 저장 없음
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## 🎯 타겟 사용자
 
-```sh
-# Using npm
-npm start
+### 주요 타겟
+- **젊은 연령층** (10-30대)
+- 혼자 있는 시간이 외로운 사람들
+- 부담 없이 새로운 사람과 이야기하고 싶은 사람들
+- 익명으로 고민 상담을 원하는 사람들
 
-# OR using Yarn
-yarn start
+### 사용자 페르소나
+- "혼자 있는 밤이 외로운 대학생"
+- "새로운 사람과 부담 없이 이야기하고 싶은 직장인" 
+- "익명으로 고민 상담을 하고 싶은 사람"
+
+## 🚀 기술 스택
+
+### Frontend (React Native)
+- **React Native CLI** (더 많은 네이티브 기능 접근)
+- **React Navigation 6** (네비게이션)
+- **React Query/TanStack Query** (서버 상태 관리)
+- **Zustand** (클라이언트 상태 관리)
+- **React Hook Form** (폼 관리)
+- **NativeWind** (Tailwind CSS for React Native)
+- **Hero UI 다크테마** (UI 디자인 시스템)
+
+### Backend & Real-time
+- **홈서버 기반 매칭 서버** (Node.js + Socket.io)
+- **Local Storage 중심** (AsyncStorage, SecureStorage)
+- **WebRTC/Socket.io** (P2P 실시간 통신)
+
+### 데이터 저장 방식
+```
+🏠 Local Storage (React Native)
+├── AsyncStorage (대화 내용)
+├── SecureStorage (임시 사용자 ID)
+└── Memory State (실시간 채팅)
+
+🌐 홈서버 (매칭용만)
+├── WebSocket/Socket.io (실시간 연결)
+├── 간단한 매칭 로직
+└── 사용자 카운트만 관리
 ```
 
-## Step 2: Build and run your app
+## 🏗️ 아키텍처 설계
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+### 데이터 플로우
+```
+[사용자 A 앱] ←→ [홈서버 매칭] ←→ [사용자 B 앱]
+     ↓                              ↓
+[Local Storage]                [Local Storage]
 ```
 
-### iOS
+### 핵심 설계 원칙
+1. **매칭만 서버에서 처리**
+2. **실제 대화는 P2P 또는 임시 채널**
+3. **모든 대화 내용은 각자 폰에만 저장**
+4. **자정되면 로컬 스토리지 자동 삭제**
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+## 💡 혁신적인 특징
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+### 차별화 포인트
+- **24시간 제한으로 인한 새로운 만남의 설렘**
+- **완전 익명성으로 진솔한 대화 가능**
+- **제한된 연결로 소중함 증대**
+- **휘발성 대화로 부담 없는 소통**
 
-```sh
-bundle install
+### 추가 기능 아이디어
+- **감정 상태 표시**: 오늘 기분을 이모지로 설정
+- **관심사 태그**: 3개 정도 선택해서 비슷한 사람과 매칭
+- **대화 온도**: 대화가 활발할수록 시각적 효과
+- **자정 카운트다운**: 남은 시간 표시로 긴장감 조성
+
+## 🏠 홈서버 구축 방안
+
+### 필요 사항
+- 홈서버 (라즈베리파이 4 이상)
+- 고정 IP 또는 DDNS
+- 포트포워딩 설정
+- SSL 인증서 (Let's Encrypt)
+
+### 구축 방법
+```
+Node.js + Socket.io 서버
+↓
+Docker 컨테이너로 배포
+↓ 
+NGINX 리버스 프록시
+↓
+도메인 연결 (무료 DDNS)
 ```
 
-Then, and every time you update your native dependencies, run:
+## 💰 비용 최적화 전략
 
-```sh
-bundle exec pod install
-```
+### 장점
+- **완전 무료 운영 가능** (홈서버 활용)
+- **Firebase 과금 걱정 없음** (Local Storage 사용)
+- **개인정보 보호 강화** (서버에 데이터 미저장)
+- **빠른 성능** (로컬 데이터 접근)
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+### 백업 옵션
+- Supabase (PostgreSQL 기반)
+- PlanetScale (MySQL 기반) 
+- Railway ($5/월)
+- 자체 VPS ($3-5/월)
 
-```sh
-# Using npm
-npm run ios
+## 🎨 UI/UX 방향성
 
-# OR using Yarn
-yarn ios
-```
+- **Hero UI 다크테마** 기반
+- **미니멀하고 직관적인 인터페이스**
+- **감정적 연결감을 주는 비주얼**
+- **자정 카운트다운 등 긴장감 조성 요소**
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## 📋 개발 로드맵
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+### Phase 1: 기획 완료 ✅
+- [x] 컨셉 정의
+- [x] 기술 스택 선정
+- [x] 아키텍처 설계
+- [x] 상세 기능 명세
+- [ ] UI/UX 와이어프레임
 
-## Step 3: Modify your app
+### Phase 2: 개발 준비
+- [ ] 홈서버 환경 구축
+- [ ] React Native 프로젝트 초기 설정
+- [ ] 기본 UI 컴포넌트 구성
 
-Now that you have successfully run the app, let's make changes!
+### Phase 3: 핵심 기능 개발
+- [ ] 매칭 시스템 구현
+- [ ] 실시간 채팅 기능
+- [ ] Local Storage 관리
+- [ ] 자정 리셋 기능
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+### Phase 4: 고도화
+- [ ] 추가 기능 구현
+- [ ] 성능 최적화
+- [ ] 테스트 및 버그 수정
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## 📋 상세 기능 명세서
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+### 🚀 **핵심 기능 (MVP)**
 
-## Congratulations! :tada:
+#### **1.1 앱 진입 & 온보딩**
+- **익명 입장**: 별도 회원가입 없이 바로 접속
+- **닉네임 설정**: 임시 닉네임 자동 생성 (예: "밤하늘123")
+- **간단한 튜토리얼**: 앱 사용법 3-4단계로 설명
+- **이용약관 동의**: 최소한의 약관 (익명성, 24시간 제한 등)
+- **권한 요청 플로우**: 푸시 알림, 배터리 최적화, Background App Refresh 설정
 
-You've successfully run and modified your React Native App. :partying_face:
+#### **1.2 매칭 시스템**
+- **원터치 매칭**: "대화 시작하기" 버튼 하나로 매칭 시작
+- **백그라운드 매칭**: 앱이 꺼져있어도 서버에서 매칭 계속 진행
+- **매칭 상태 동기화**: 앱 재실행시 서버에서 매칭 결과 확인
+- **무제한 재매칭**: 일일 매칭 횟수 제한 없음
+- **대기열 관리**: 24시간 후 자동 매칭 취소
 
-### Now what?
+#### **1.3 채팅 기능**
+- **다중 대화방**: 최대 5개 대화방 동시 운영
+- **대화방 목록**: 활성 대화방들을 탭/리스트로 관리
+- **실시간 텍스트**: 기본 텍스트 메시지
+- **이모지 지원**: 기본 이모지 팩 제공
+- **메시지 상태**: 전송됨/읽음 표시
+- **상대방 타이핑**: "상대방이 입력 중..." 표시
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+#### **1.4 시간 관리**
+- **자정 카운트다운**: 상단에 남은 시간 표시
+- **자동 종료**: 자정 정각에 모든 대화방 자동 종료
+- **데이터 삭제**: 로컬 스토리지 대화 내용 완전 삭제
+- **새로운 하루**: 자정 후 새로운 매칭 가능
 
-# Troubleshooting
+### ⭐ **부가 기능**
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+#### **2.1 감정 표현**
+- **기분 상태**: 오늘 기분을 5가지 이모지로 선택
+- **관심사 태그**: 3개까지 선택 (음악🎵, 영화🎬, 게임🎮, 여행✈️ 등)
+- **매칭 필터**: 비슷한 관심사나 기분의 사람과 우선 매칭
 
-# Learn More
+#### **2.2 대화 분위기**
+- **대화 온도**: 대화 활발함에 따라 배경색 변화
+- **메시지 카운트**: 오늘 주고받은 메시지 수 표시
+- **연결 시간**: 대화 시작부터 경과된 시간 표시
 
-To learn more about React Native, take a look at the following resources:
+#### **2.3 안전 기능**
+- **신고 기능**: 부적절한 사용자 신고 (IP 기준 차단)
+- **차단 기능**: 현재 대화 즉시 종료
+- **비속어 필터**: 기본적인 욕설 필터링
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+### 🔔 **푸시 알림 시스템**
+
+#### **3.1 알림 유형**
+- **매칭 성공**: "새로운 인연이 당신을 기다리고 있어요! 💫"
+- **새 메시지**: "[닉네임]님이 메시지를 보냈어요"
+- **자정 알림**: "10분 후 오늘의 대화가 끝나요 ⏰"
+
+#### **3.2 알림 설정**
+- **전체 알림**: 켜기/끄기
+- **매칭 알림**: 매칭 성공시에만
+- **메시지 알림**: 새 메시지 도착시
+- **시간 알림**: 자정 종료 알림
+
+### 📊 **제한사항 & 규칙**
+
+#### **4.1 사용 제한**
+- **동시 대화**: 최대 5개 대화방
+- **일일 매칭**: 무제한 (자정 리셋)
+- **메시지 길이**: 최대 500자
+- **연속 메시지**: 3회 연속 후 상대방 응답 대기
+
+#### **4.2 자동 규칙**
+- **자정 알림**: 종료 10분, 5분, 1분 전 알림
+- **데이터 정리**: 자정 후 모든 로컬 데이터 삭제
+- **매칭 대기 유지**: 백그라운드에서도 매칭 대기 지속
+
+### ⚙️ **기술적 세부사항**
+
+#### **5.1 데이터 저장**
+- **AsyncStorage**: 대화 내용, 설정
+- **SecureStorage**: 임시 사용자 ID
+- **Memory**: 실시간 매칭 상태
+
+#### **5.2 푸시 알림 구현**
+- **React Native Push Notification**
+- **Firebase Cloud Messaging (FCM)**
+- **APNs (iOS)** / **FCM (Android)**
+
+#### **5.3 매칭 시스템**
+- **대기열 관리**: FIFO 방식 + 관심사 가중치
+- **백그라운드 처리**: 서버에서 매칭 상태 유지
+- **상태 동기화**: 앱 실행시 매칭 결과 확인
+
+---
+
+**개발 시작일**: 2025년
+**개발자**: [tough]
+**상태**: 기획 단계 완료 🎯
