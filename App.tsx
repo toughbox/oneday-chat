@@ -7,15 +7,14 @@
 
 import React from 'react';
 import { StatusBar } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import ChatRoomScreen from './src/screens/ChatRoomScreen';
+import TestApp from './TestApp';
 
 function App() {
   return (
-    <SafeAreaProvider>
+    <>
       <StatusBar barStyle="light-content" backgroundColor="#030712" />
-      <ChatRoomScreen />
-    </SafeAreaProvider>
+      <TestApp />
+    </>
   );
 }
 
