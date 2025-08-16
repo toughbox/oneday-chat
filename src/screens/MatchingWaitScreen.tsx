@@ -8,7 +8,9 @@ import {
   Platform,
   Animated,
   Easing,
+  Alert,
 } from 'react-native';
+import { matchingService, MatchResult } from '../services/matchingService';
 
 interface Props {
   navigation: {
@@ -18,7 +20,7 @@ interface Props {
 }
 
 const MatchingWaitScreen: React.FC<Props> = ({ navigation }) => {
-  const [waitingCount, setWaitingCount] = useState(8);
+  const [waitingCount, setWaitingCount] = useState(0);
   const [averageTime, setAverageTime] = useState(45);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isMatching, setIsMatching] = useState(true);
@@ -46,42 +48,96 @@ const MatchingWaitScreen: React.FC<Props> = ({ navigation }) => {
     };
   }, []);
 
+  // 실제 Firebase 매칭 시작
   useEffect(() => {
-    // 타이머들을 별도 useEffect로 분리
+    const startMatching = async () => {
+      try {
+        // 사용자 정보 설정 (임시)
+        const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const nickname = `익명${Math.floor(Math.random() * 1000)}`;
+        
+        matchingService.setUserInfo(userId, nickname);
+        
+        // 매칭 성공 콜백 설정
+        matchingService.setMatchFoundCallback((result: MatchResult) => {
+          console.log('🎉 매칭 성공!', result);
+          setIsMatching(false);
+          
+          navigation.navigate('MatchingResult', {
+            success: true,
+            elapsedTime: elapsedTime,
+            roomId: result.roomId,
+            partnerId: result.partnerId,
+            partnerNickname: result.partnerNickname
+          });
+        });
+        
+        // 매칭 요청 시작
+        const success = await matchingService.requestMatch(['일반'], '😊');
+        
+        if (!success) {
+          Alert.alert('매칭 오류', '매칭 요청에 실패했습니다.');
+          navigation.goBack();
+        }
+        
+      } catch (error) {
+        console.error('❌ 매칭 시작 실패:', error);
+        Alert.alert('오류', '매칭을 시작할 수 없습니다.');
+        navigation.goBack();
+      }
+    };
+    
+    startMatching();
+    
+    // 타이머들
     const timer = setInterval(() => {
       if (isMatching) {
         setElapsedTime(prev => prev + 1);
       }
     }, 1000);
 
-    const dataTimer = setInterval(() => {
+    const dataTimer = setInterval(async () => {
       if (isMatching) {
-        setWaitingCount(prev => Math.max(1, prev + Math.floor(Math.random() * 3) - 1));
-        setAverageTime(prev => prev + Math.floor(Math.random() * 10) - 5);
+        // 실제 대기 중인 사용자 수 가져오기
+        const count = await matchingService.getWaitingCount();
+        setWaitingCount(count);
+        
+        // 평균 시간 시뮬레이션 (실제로는 서버에서 계산)
+        setAverageTime(prev => Math.max(30, prev + Math.floor(Math.random() * 10) - 5));
       }
-    }, 3000);
+    }, 2000);
 
-    const matchingTimer = setTimeout(() => {
+    // 매칭 타임아웃 (2분)
+    const matchingTimeout = setTimeout(() => {
       if (isMatching) {
         setIsMatching(false);
+        matchingService.cancelMatch();
         
-        const isSuccess = Math.random() > 0.2;
         navigation.navigate('MatchingResult', { 
-          success: isSuccess,
+          success: false,
           elapsedTime: elapsedTime 
         });
       }
-    }, 5000 + Math.random() * 10000);
+    }, 120000); // 2분
 
     return () => {
       clearInterval(timer);
       clearInterval(dataTimer);
-      clearTimeout(matchingTimer);
+      clearTimeout(matchingTimeout);
+      
+      // 매칭 정리
+      if (isMatching) {
+        matchingService.cancelMatch();
+      }
     };
   }, []);
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     setIsMatching(false);
+    
+    // Firebase 매칭 취소
+    await matchingService.cancelMatch();
+    
     navigation.goBack();
   };
 

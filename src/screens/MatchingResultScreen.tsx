@@ -18,12 +18,15 @@ interface Props {
     params: {
       success: boolean;
       elapsedTime?: number;
+      roomId?: string;
+      partnerId?: string;
+      partnerNickname?: string;
     };
   };
 }
 
 const MatchingResultScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { success, elapsedTime = 0 } = route.params;
+  const { success, elapsedTime = 0, roomId, partnerId, partnerNickname } = route.params;
   const [partner, setPartner] = useState<any>(null);
   
   // 애니메이션 값들
@@ -32,20 +35,40 @@ const MatchingResultScreen: React.FC<Props> = ({ navigation, route }) => {
 
   useEffect(() => {
     if (success) {
-      // 성공시 랜덤 상대방 생성
-      const partners = [
-        { name: '달빛 여행자', avatar: '🌙', welcomeMessage: '안녕하세요! 반가워요 😊' },
-        { name: '별빛 수집가', avatar: '⭐', welcomeMessage: '처음 뵙겠습니다! 잘 부탁드려요 ✨' },
-        { name: '밤하늘 관찰자', avatar: '🔭', welcomeMessage: '오늘 밤 좋은 대화 나누어요! 🌌' },
-        { name: '꿈꾸는 탐험가', avatar: '🗺️', welcomeMessage: '새로운 만남이 설레네요! 🎭' },
-        { name: '심야 창작자', avatar: '✏️', welcomeMessage: '밤늦게 수고하세요! 😄' },
-        { name: '고요한 독서가', avatar: '📚', welcomeMessage: '좋은 책 있으면 추천해주세요! 📖' },
-        { name: '음악 애호가', avatar: '🎵', welcomeMessage: '어떤 음악 좋아하세요? 🎶' },
-        { name: '커피 애호가', avatar: '☕', welcomeMessage: '밤에도 커피 마시시나요? ☕' },
-      ];
-      
-      const randomPartner = partners[Math.floor(Math.random() * partners.length)];
-      setPartner(randomPartner);
+      // Firebase에서 받은 실제 매칭 정보 사용
+      if (partnerNickname && roomId) {
+        const avatars = ['🌙', '⭐', '🔭', '🗺️', '✏️', '📚', '🎵', '☕', '🎨', '🌸'];
+        const welcomeMessages = [
+          '안녕하세요! 반가워요 😊',
+          '처음 뵙겠습니다! 잘 부탁드려요 ✨',
+          '오늘 밤 좋은 대화 나누어요! 🌌',
+          '새로운 만남이 설레네요! 🎭',
+          '밤늦게 수고하세요! 😄',
+          '좋은 책 있으면 추천해주세요! 📖',
+          '어떤 음악 좋아하세요? 🎶',
+          '밤에도 커피 마시시나요? ☕'
+        ];
+        
+        const randomAvatar = avatars[Math.floor(Math.random() * avatars.length)];
+        const randomWelcomeMessage = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+        
+        setPartner({
+          name: partnerNickname,
+          avatar: randomAvatar,
+          welcomeMessage: randomWelcomeMessage,
+          roomId: roomId,
+          partnerId: partnerId
+        });
+      } else {
+        // 기본값 (테스트용)
+        setPartner({
+          name: '익명의 친구',
+          avatar: '🌟',
+          welcomeMessage: '안녕하세요! 😊',
+          roomId: 'test_room',
+          partnerId: 'test_user'
+        });
+      }
     }
 
     // 애니메이션 시작 (부드러운 등장)
@@ -69,14 +92,16 @@ const MatchingResultScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleStartChat = () => {
     if (success && partner) {
-      // 새 대화방 생성하고 이동
+      // Firebase에서 받은 실제 roomId와 파트너 정보로 대화방 이동
       navigation.navigate('ChatRoomList', {
         newChatRoom: {
-          id: Date.now().toString(),
+          id: partner.roomId || Date.now().toString(),
           partnerName: partner.name,
+          partnerId: partner.partnerId,
           avatar: partner.avatar,
           welcomeMessage: partner.welcomeMessage,
           createdAt: new Date(),
+          isFirebaseRoom: true, // Firebase 기반 대화방 표시
         }
       });
     }

@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'react-native';
+import database from '@react-native-firebase/database';
 import TestApp from './TestApp';
 import NicknameScreen from './src/screens/onboarding/NicknameScreen';
 import ChatRoomScreen from './src/screens/ChatRoomScreen';
@@ -17,14 +18,27 @@ import EmotionSelectionScreen from './src/screens/EmotionSelectionScreen';
 import FCMTestScreen from './src/screens/FCMTestScreen';
 import { midnightResetService } from './src/utils/midnightReset';
 import { fcmService } from './src/services/fcmService';
+import { firebaseConfig } from './src/config/firebaseConfig';
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('welcome');
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [screenParams, setScreenParams] = useState<any>({});
 
-  // 앱 시작시 자정 리셋 서비스 시작
+  // 앱 시작시 Firebase 및 서비스 초기화
   useEffect(() => {
+    // Firebase Realtime Database 초기화
+    try {
+      if (firebaseConfig.databaseURL) {
+        // Database URL 설정
+        console.log('🔥 Firebase Database 초기화:', firebaseConfig.databaseURL);
+        // Database URL 확인
+        console.log('📍 사용할 Database URL:', 'https://oneday-chat-abbe6-default-rtdb.firebaseio.com/');
+      }
+    } catch (error) {
+      console.error('❌ Firebase Database 초기화 실패:', error);
+    }
+
     // 자정에 앱 상태 초기화 콜백 설정
     midnightResetService.onDataClear = () => {
       setCurrentScreen('welcome');

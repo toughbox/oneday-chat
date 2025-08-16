@@ -1,13 +1,14 @@
 {
   "project_info": {
-    "project_number": "164027426589",
-    "project_id": "oneday-chat-bb338",
-    "storage_bucket": "oneday-chat-bb338.firebasestorage.app"
+    "project_number": "363452035271",
+    "firebase_url": "https://oneday-chat-abbe6-default-rtdb.firebaseio.com",
+    "project_id": "oneday-chat-abbe6",
+    "storage_bucket": "oneday-chat-abbe6.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:164027426589:android:6ce57544c4c3d134d4a3f4",
+        "mobilesdk_app_id": "1:363452035271:android:bda249cec0244271d18ee2",
         "android_client_info": {
           "package_name": "com.onedaychat"
         }
@@ -15,7 +16,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDXyVn1XdJKdetML3_i5SqAmoO7QueDF_U"
+          "current_key": "AIzaSyClZnNnfXnkdos4mBQJn4yG-NN1qOJAH5s"
         }
       ],
       "services": {

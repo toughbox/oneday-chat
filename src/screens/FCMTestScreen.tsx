@@ -259,6 +259,26 @@ const FCMTestScreen: React.FC<Props> = ({ navigation }) => {
             </TouchableOpacity>
           </View>
 
+          {/* Firebase 매칭 테스트 */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🔥 Firebase 매칭 테스트</Text>
+            <Text style={styles.sectionSubtitle}>
+              실제 Firebase Realtime Database 매칭을 테스트해보세요
+            </Text>
+
+            <TouchableOpacity 
+              style={styles.firebaseTestButton}
+              onPress={() => navigation.navigate('MatchingWait')}
+            >
+              <Text style={styles.firebaseTestIcon}>🎯</Text>
+              <View style={styles.firebaseTestContent}>
+                <Text style={styles.firebaseTestTitle}>Firebase 매칭 시작</Text>
+                <Text style={styles.firebaseTestSubtitle}>실제 Firebase DB로 매칭 테스트</Text>
+              </View>
+              <Text style={styles.firebaseTestArrow}>›</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* 다시 초기화 */}
           <View style={styles.section}>
             <TouchableOpacity 
@@ -471,6 +491,38 @@ const styles = StyleSheet.create({
   testButtonSubtitle: {
     fontSize: 12,
     color: '#9ca3af',
+  },
+  firebaseTestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#059669',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#10b981',
+  },
+  firebaseTestIcon: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  firebaseTestContent: {
+    flex: 1,
+  },
+  firebaseTestTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: 4,
+  },
+  firebaseTestSubtitle: {
+    fontSize: 12,
+    color: '#bbf7d0',
+  },
+  firebaseTestArrow: {
+    fontSize: 20,
+    color: '#ffffff',
+    fontWeight: '300',
   },
   refreshButton: {
     backgroundColor: '#6b7280',
