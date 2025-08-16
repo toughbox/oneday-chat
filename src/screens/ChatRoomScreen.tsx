@@ -150,6 +150,7 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [timeLeft, setTimeLeft] = useState('23:45:30'); // 더미 타이머
   const [showMenu, setShowMenu] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
   // 24시간 타이머 시뮬레이션
@@ -396,9 +397,43 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
           )}
         </ScrollView>
 
+        {/* 이모지 선택창 */}
+        {showEmojiPicker && (
+          <View style={styles.emojiPickerContainer}>
+            <Text style={styles.emojiPickerTitle}>이모지 선택</Text>
+            <View style={styles.emojiGrid}>
+              {['😊', '😂', '😍', '🥺', '😭', '😘', '🤔', '😎', '🙄', '😴', '🤗', '😜', '🤩', '😇', '🥰', '😋', '🤯', '😱', '🤭', '🙈', '💕', '❤️', '💖', '💯', '🔥', '✨', '🎉', '👍', '👏', '🙏'].map((emoji, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.emojiButton}
+                  onPress={() => {
+                    setInputText(prev => prev + emoji);
+                    setShowEmojiPicker(false);
+                  }}
+                >
+                  <Text style={styles.emojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={styles.emojiCloseButton}
+              onPress={() => setShowEmojiPicker(false)}
+            >
+              <Text style={styles.emojiCloseButtonText}>닫기</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* 입력 영역 */}
         <View style={styles.inputContainer}>
           <View style={styles.inputWrapper}>
+            <TouchableOpacity
+              style={styles.emojiPickerButton}
+              onPress={() => setShowEmojiPicker(!showEmojiPicker)}
+            >
+              <Text style={styles.emojiPickerButtonText}>😊</Text>
+            </TouchableOpacity>
+            
             <TextInput
               style={styles.textInput}
               value={inputText}
@@ -618,6 +653,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     maxHeight: 100,
     paddingVertical: 8,
+    marginLeft: 8,
   },
   sendButton: {
     paddingHorizontal: 16,
@@ -635,6 +671,61 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  emojiPickerContainer: {
+    backgroundColor: '#1f2937',
+    borderTopWidth: 1,
+    borderTopColor: '#374151',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    maxHeight: 300,
+  },
+  emojiPickerTitle: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  emojiButton: {
+    width: '16.66%',
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    backgroundColor: '#374151',
+    borderRadius: 8,
+    marginHorizontal: 1,
+  },
+  emojiText: {
+    fontSize: 24,
+  },
+  emojiCloseButton: {
+    backgroundColor: '#6b7280',
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  emojiCloseButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emojiPickerButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  emojiPickerButtonText: {
+    fontSize: 20,
   },
   menuOverlay: {
     position: 'absolute',
