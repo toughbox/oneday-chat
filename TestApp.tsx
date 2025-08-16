@@ -11,7 +11,11 @@ import {
   SafeAreaView,
 } from 'react-native';
 
-function TestApp() {
+interface Props {
+  onStartPress: () => void;
+}
+
+function TestApp({ onStartPress }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -32,7 +36,11 @@ function TestApp() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.enterButton}>
+        <TouchableOpacity 
+          style={styles.enterButton}
+          onPress={onStartPress}
+          activeOpacity={0.8}
+        >
           <Text style={styles.enterButtonText}>익명으로 시작하기</Text>
         </TouchableOpacity>
       </View>
