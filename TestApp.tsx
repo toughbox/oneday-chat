@@ -13,9 +13,10 @@ import {
 
 interface Props {
   onStartPress: () => void;
+  onFCMTestPress?: () => void;
 }
 
-function TestApp({ onStartPress }: Props) {
+function TestApp({ onStartPress, onFCMTestPress }: Props) {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -36,13 +37,25 @@ function TestApp({ onStartPress }: Props) {
           </View>
         </View>
 
-        <TouchableOpacity 
-          style={styles.enterButton}
-          onPress={onStartPress}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.enterButtonText}>익명으로 시작하기</Text>
-        </TouchableOpacity>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity 
+            style={styles.enterButton}
+            onPress={onStartPress}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.enterButtonText}>익명으로 시작하기</Text>
+          </TouchableOpacity>
+
+          {onFCMTestPress && (
+            <TouchableOpacity 
+              style={styles.testButton}
+              onPress={onFCMTestPress}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.testButtonText}>📱 FCM 테스트</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -116,6 +129,21 @@ const styles = StyleSheet.create({
   enterButtonText: {
     color: '#ffffff',
     fontSize: 18,
+    fontWeight: '600',
+  },
+  buttonContainer: {
+    gap: 12,
+  },
+  testButton: {
+    backgroundColor: '#10b981',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  testButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
     fontWeight: '600',
   },
 });
