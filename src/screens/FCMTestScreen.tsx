@@ -10,6 +10,9 @@ import {
   Alert,
 } from 'react-native';
 import { fcmService } from '../services/fcmService';
+import { midnightResetService } from '../utils/midnightReset';
+import { socketService } from '../services/socketService';
+import { socketMatchingService } from '../services/socketMatchingService';
 
 interface Props {
   navigation: {
@@ -22,6 +25,8 @@ const FCMTestScreen: React.FC<Props> = ({ navigation }) => {
   const [fcmToken, setFcmToken] = useState<string>('');
   const [tokenStatus, setTokenStatus] = useState<string>('대기 중...');
   const [permissionStatus, setPermissionStatus] = useState<string>('확인 중...');
+  const [socketStatus, setSocketStatus] = useState<string>('연결 안됨');
+  const [serverUrl, setServerUrlState] = useState<string>('http://toughbox.iptime.org:3000');
 
   useEffect(() => {
     initializeFCM();
@@ -73,25 +78,19 @@ const FCMTestScreen: React.FC<Props> = ({ navigation }) => {
 
   // 테스트 알림 표시
   const showTestNotification = (type: string) => {
-    const notifications = fcmService.constructor.getSampleNotifications();
     let notification;
 
     switch (type) {
       case 'matching':
-        notification = notifications.matchingSuccess;
+        notification = { title: '💫 매칭 성공!', body: '새로운 인연이 당신을 기다리고 있어요!' };
         break;
       case 'message':
-        notification = notifications.newMessage;
+        notification = { title: '💬 새 메시지', body: '익명의 누군가님이 메시지를 보냈어요' };
         break;
       case 'midnight10':
-        notification = notifications.midnightWarning10;
+        notification = { title: '⏰ 자정 경고', body: '10분 후 모든 대화가 종료됩니다' };
         break;
-      case 'midnight5':
-        notification = notifications.midnightWarning5;
-        break;
-      case 'midnight1':
-        notification = notifications.midnightWarning1;
-        break;
+
       default:
         notification = { title: '테스트 알림', body: '알림 테스트입니다' };
     }
@@ -111,6 +110,114 @@ const FCMTestScreen: React.FC<Props> = ({ navigation }) => {
         ]
       );
     }
+  };
+
+  // 자정 리셋 테스트 함수들
+  const testMidnightWarning = async (minutes: number) => {
+    await midnightResetService.sendMidnightWarning(minutes);
+  };
+
+  const testFullMidnightReset = async () => {
+    Alert.alert(
+      '🌙 자정 리셋 테스트',
+      '정말로 테스트 리셋을 실행하시겠습니까?\n\n⚠️ 이 작업은 AsyncStorage의 모든 데이터를 삭제합니다!',
+      [
+        { text: '취소', style: 'cancel' },
+        { 
+          text: '리셋 실행', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await midnightResetService.testReset();
+              Alert.alert('✅ 완료', '자정 리셋 테스트가 완료되었습니다!');
+            } catch (error) {
+              Alert.alert('❌ 오류', '리셋 테스트 중 오류가 발생했습니다.');
+              console.error('리셋 테스트 오류:', error);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const showMemoryStatus = async () => {
+    Alert.alert(
+      '💾 메모리 상태',
+      '현재 앱은 메모리 기반으로 동작합니다.\n\n' +
+      '• 채팅 데이터: 메모리에만 저장\n' +
+      '• 자정 리셋: 앱 상태 초기화\n' +
+      '• 영구 저장소: 미사용 (완전 익명)',
+      [
+        { text: '확인', style: 'default' }
+      ]
+    );
+  };
+
+  // Socket.io 테스트 함수들
+  const testSocketConnection = async () => {
+    try {
+      setSocketStatus('연결 중...');
+      const connected = await socketService.connect(serverUrl);
+      
+      if (connected) {
+        setSocketStatus('✅ 연결됨');
+        Alert.alert('✅ 성공', 'Socket.io 서버 연결 성공!');
+      } else {
+        setSocketStatus('❌ 연결 실패');
+        Alert.alert('❌ 실패', 'Socket.io 서버 연결 실패!\n\n홈서버가 실행 중인지 확인하세요.');
+      }
+    } catch (error) {
+      setSocketStatus('❌ 오류');
+      Alert.alert('❌ 오류', 'Socket.io 연결 중 오류 발생');
+    }
+  };
+
+  const testSocketMatching = async () => {
+    try {
+      if (!socketService.isConnected()) {
+        Alert.alert('⚠️ 주의', '먼저 Socket.io 서버에 연결해주세요.');
+        return;
+      }
+
+      const success = await socketMatchingService.requestMatch(['테스트'], '좋음');
+      
+      if (success) {
+        Alert.alert('🔍 매칭 시작', 'Socket.io 매칭 요청이 전송되었습니다!');
+      } else {
+        Alert.alert('❌ 실패', 'Socket.io 매칭 요청 실패');
+      }
+    } catch (error) {
+      Alert.alert('❌ 오류', 'Socket.io 매칭 테스트 중 오류 발생');
+    }
+  };
+
+  const disconnectSocket = () => {
+    socketService.disconnect();
+    setSocketStatus('연결 안됨');
+    Alert.alert('🔌 연결 해제', 'Socket.io 서버 연결이 해제되었습니다.');
+  };
+
+  const changeServerUrl = () => {
+    Alert.prompt(
+      '🏠 홈서버 URL 변경',
+      '홈서버 IP 주소를 입력하세요:',
+      [
+        { text: '취소', style: 'cancel' },
+        { 
+          text: '변경', 
+          onPress: (url) => {
+            if (url) {
+              const fullUrl = url.startsWith('http://') ? url : `http://${url}:3000`;
+              setServerUrlState(fullUrl);
+              socketMatchingService.setServerUrl(fullUrl);
+              Alert.alert('✅ 변경됨', `서버 URL: ${fullUrl}`);
+            }
+          }
+        }
+      ],
+      'plain-text',
+      serverUrl.replace('http://', '').replace(':3000', '')
+    );
   };
 
   return (
@@ -236,27 +343,7 @@ const FCMTestScreen: React.FC<Props> = ({ navigation }) => {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.testButton, styles.midnightButton]}
-              onPress={() => showTestNotification('midnight5')}
-            >
-              <Text style={styles.testButtonIcon}>🌙</Text>
-              <View style={styles.testButtonContent}>
-                <Text style={styles.testButtonTitle}>자정 알림 (5분 전)</Text>
-                <Text style={styles.testButtonSubtitle}>5분 후 모든 대화가 종료됩니다</Text>
-              </View>
-            </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.testButton, styles.midnightButton]}
-              onPress={() => showTestNotification('midnight1')}
-            >
-              <Text style={styles.testButtonIcon}>✨</Text>
-              <View style={styles.testButtonContent}>
-                <Text style={styles.testButtonTitle}>자정 알림 (1분 전)</Text>
-                <Text style={styles.testButtonSubtitle}>1분 후 자정입니다! 마지막 인사를 나눠보세요</Text>
-              </View>
-            </TouchableOpacity>
           </View>
 
           {/* Firebase 매칭 테스트 */}
@@ -277,6 +364,135 @@ const FCMTestScreen: React.FC<Props> = ({ navigation }) => {
               </View>
               <Text style={styles.firebaseTestArrow}>›</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Socket.io P2P 통신 테스트 */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🔌 Socket.io P2P 통신 테스트</Text>
+            <Text style={styles.sectionSubtitle}>
+              홈서버와 실시간 통신을 테스트해보세요
+            </Text>
+
+            {/* 서버 상태 */}
+            <View style={styles.statusItem}>
+              <Text style={styles.statusLabel}>서버 연결:</Text>
+              <Text style={styles.statusValue}>{socketStatus}</Text>
+            </View>
+
+            <View style={styles.statusItem}>
+              <Text style={styles.statusLabel}>서버 URL:</Text>
+              <Text style={styles.statusValue} numberOfLines={1}>{serverUrl}</Text>
+            </View>
+
+            {/* Socket.io 테스트 버튼들 */}
+            <TouchableOpacity 
+              style={[styles.testButton, styles.socketConnectButton]}
+              onPress={testSocketConnection}
+            >
+              <Text style={styles.testButtonIcon}>🔌</Text>
+              <View style={styles.testButtonContent}>
+                <Text style={styles.testButtonTitle}>Socket.io 서버 연결</Text>
+                <Text style={styles.testButtonSubtitle}>홈서버와 실시간 연결 테스트</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.testButton, styles.socketMatchButton]}
+              onPress={testSocketMatching}
+            >
+              <Text style={styles.testButtonIcon}>🔍</Text>
+              <View style={styles.testButtonContent}>
+                <Text style={styles.testButtonTitle}>Socket.io 매칭 테스트</Text>
+                <Text style={styles.testButtonSubtitle}>실시간 매칭 시스템 테스트</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.testButton, styles.socketUrlButton]}
+              onPress={changeServerUrl}
+            >
+              <Text style={styles.testButtonIcon}>🏠</Text>
+              <View style={styles.testButtonContent}>
+                <Text style={styles.testButtonTitle}>홈서버 URL 변경</Text>
+                <Text style={styles.testButtonSubtitle}>홈서버 IP 주소 설정</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={[styles.testButton, styles.socketDisconnectButton]}
+              onPress={disconnectSocket}
+            >
+              <Text style={styles.testButtonIcon}>🔌</Text>
+              <View style={styles.testButtonContent}>
+                <Text style={styles.testButtonTitle}>연결 해제</Text>
+                <Text style={styles.testButtonSubtitle}>Socket.io 서버 연결 해제</Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.infoBox}>
+              <Text style={styles.infoTitle}>🏠 홈서버 설정 방법:</Text>
+              <Text style={styles.infoText}>
+                1. HOMESERVER_SETUP.md 파일 참고
+                {'\n'}2. 라즈베리파이에 Node.js 서버 설치
+                {'\n'}3. 공유기에서 포트포워딩 설정
+                {'\n'}4. 위의 "홈서버 URL 변경"으로 IP 설정
+              </Text>
+            </View>
+          </View>
+
+          {/* 자정 리셋 시스템 테스트 */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>🌙 자정 리셋 시스템 테스트</Text>
+            <Text style={styles.sectionSubtitle}>
+              자정 경고 알림과 데이터 삭제 기능을 테스트해보세요
+            </Text>
+
+            {/* 메모리 상태 확인 */}
+            <TouchableOpacity 
+              style={[styles.testButton, styles.storageButton]}
+              onPress={showMemoryStatus}
+            >
+              <Text style={styles.testButtonIcon}>💾</Text>
+              <View style={styles.testButtonContent}>
+                <Text style={styles.testButtonTitle}>메모리 상태 확인</Text>
+                <Text style={styles.testButtonSubtitle}>현재 앱의 데이터 저장 방식 확인 (완전 익명)</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* 자정 경고 알림 테스트 */}
+            <TouchableOpacity 
+              style={[styles.testButton, styles.midnightButton]}
+              onPress={() => testMidnightWarning(10)}
+            >
+              <Text style={styles.testButtonIcon}>⏰</Text>
+              <View style={styles.testButtonContent}>
+                <Text style={styles.testButtonTitle}>자정 10분 전 경고</Text>
+                <Text style={styles.testButtonSubtitle}>실제 FCM 경고 알림 테스트 (유일한 경고 알림)</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* 전체 리셋 테스트 */}
+            <TouchableOpacity 
+              style={[styles.testButton, styles.resetButton]}
+              onPress={testFullMidnightReset}
+            >
+              <Text style={styles.testButtonIcon}>🌙</Text>
+              <View style={styles.testButtonContent}>
+                <Text style={styles.testButtonTitle}>전체 자정 리셋 테스트</Text>
+                <Text style={styles.testButtonSubtitle}>⚠️ 메모리 데이터 완전 삭제 (무음 리셋)</Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.warningBox}>
+              <Text style={styles.warningTitle}>⚠️ 주의사항:</Text>
+              <Text style={styles.warningText}>
+                • 자정 리셋은 앱의 모든 메모리 데이터를 초기화합니다
+                {'\n'}• 실제 앱에서는 자정(00:00)에 자동 실행됩니다  
+                {'\n'}• 10분 전에만 경고 알림이 발송됩니다
+                {'\n'}• 자정 후에는 무음으로 리셋됩니다
+                {'\n'}• 완전 익명: 영구 저장소를 사용하지 않습니다
+              </Text>
+            </View>
           </View>
 
           {/* 다시 초기화 */}
@@ -475,6 +691,25 @@ const styles = StyleSheet.create({
   midnightButton: {
     borderColor: '#f59e0b',
   },
+  storageButton: {
+    borderColor: '#8b5cf6',
+  },
+  resetButton: {
+    borderColor: '#dc2626',
+    backgroundColor: '#7f1d1d',
+  },
+  socketConnectButton: {
+    borderColor: '#059669',
+  },
+  socketMatchButton: {
+    borderColor: '#3b82f6',
+  },
+  socketUrlButton: {
+    borderColor: '#f59e0b',
+  },
+  socketDisconnectButton: {
+    borderColor: '#dc2626',
+  },
   testButtonIcon: {
     fontSize: 24,
     marginRight: 12,
@@ -534,6 +769,44 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  warningBox: {
+    backgroundColor: '#7f1d1d',
+    borderRadius: 8,
+    padding: 16,
+    marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#dc2626',
+  },
+  warningTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: 8,
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#fecaca',
+    lineHeight: 18,
+  },
+  infoBox: {
+    backgroundColor: '#1e40af',
+    borderRadius: 8,
+    padding: 16,
+    marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: 8,
+  },
+  infoText: {
+    fontSize: 12,
+    color: '#bfdbfe',
+    lineHeight: 18,
   },
 });
 

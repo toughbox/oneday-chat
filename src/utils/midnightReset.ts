@@ -4,7 +4,10 @@ interface MidnightResetService {
   clearAllData: () => Promise<void>;
   scheduleNextMidnight: () => void;
   onDataClear?: () => void; // 콜백 함수 추가
+  sendMidnightWarning: (minutesLeft: number) => Promise<void>; // FCM 경고 알림
 }
+
+import { fcmService } from '../services/fcmService';
 
 class MidnightResetManager implements MidnightResetService {
   private midnightTimer: NodeJS.Timeout | null = null;
@@ -20,6 +23,25 @@ class MidnightResetManager implements MidnightResetService {
     return midnight.getTime() - now.getTime();
   }
 
+  // 자정 경고 푸시 알림 발송 (10분 전만)
+  async sendMidnightWarning(minutesLeft: number): Promise<void> {
+    try {
+      if (minutesLeft !== 10) {
+        return; // 10분 전 알림만 발송
+      }
+      
+      const title = '⏰ 자정 경고';
+      const body = '10분 후 모든 대화가 종료됩니다. 소중한 이야기를 마무리해주세요 💫';
+      
+      // FCM 로컬 알림 발송
+      await fcmService.showLocalNotification(title, body);
+      console.log(`🔔 자정 ${minutesLeft}분 전 알림 발송 완료`);
+      
+    } catch (error) {
+      console.error(`❌ ${minutesLeft}분 전 알림 발송 실패:`, error);
+    }
+  }
+
   // 모든 로컬 데이터 삭제 (메모리 기반)
   async clearAllData(): Promise<void> {
     try {
@@ -30,43 +52,23 @@ class MidnightResetManager implements MidnightResetService {
         this.onDataClear();
       }
       
-      console.log('🧹 자정 데이터 정리 완료');
+      console.log('🧹 자정 데이터 정리 완료 (메모리 기반)');
     } catch (error) {
       console.error('❌ 데이터 삭제 실패:', error);
     }
   }
 
-  // 자정 경고 알림 (10분, 5분, 1분 전)
+  // 자정 경고 알림 (10분 전만)
   private scheduleWarnings(): void {
     const timeUntilMidnight = this.getTimeUntilMidnight();
     
-    // 10분 전 알림
+    // 10분 전 알림만
     const tenMinutesBefore = timeUntilMidnight - (10 * 60 * 1000);
     if (tenMinutesBefore > 0) {
-      const timer = setTimeout(() => {
+      const timer = setTimeout(async () => {
         console.log('⚠️ 10분 후 모든 대화가 종료됩니다');
-        // TODO: 푸시 알림 발송
+        await this.sendMidnightWarning(10);
       }, tenMinutesBefore);
-      this.warningTimers.push(timer);
-    }
-
-    // 5분 전 알림
-    const fiveMinutesBefore = timeUntilMidnight - (5 * 60 * 1000);
-    if (fiveMinutesBefore > 0) {
-      const timer = setTimeout(() => {
-        console.log('⚠️ 5분 후 모든 대화가 종료됩니다');
-        // TODO: 푸시 알림 발송
-      }, fiveMinutesBefore);
-      this.warningTimers.push(timer);
-    }
-
-    // 1분 전 알림
-    const oneMinuteBefore = timeUntilMidnight - (1 * 60 * 1000);
-    if (oneMinuteBefore > 0) {
-      const timer = setTimeout(() => {
-        console.log('⚠️ 1분 후 모든 대화가 종료됩니다');
-        // TODO: 푸시 알림 발송
-      }, oneMinuteBefore);
       this.warningTimers.push(timer);
     }
   }
