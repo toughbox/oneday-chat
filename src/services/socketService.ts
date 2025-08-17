@@ -10,6 +10,7 @@ interface SocketService {
   onUserJoined: (callback: (data: any) => void) => void;
   onUserLeft: (callback: (data: any) => void) => void;
   onMatchFound: (callback: (data: any) => void) => void;
+  onMatchError: (callback: (error: any) => void) => void;
   requestMatch: (userInfo: any) => void;
   cancelMatch: () => void;
   isConnected: () => boolean;
@@ -148,6 +149,16 @@ class SocketManager implements SocketService {
       this.socket.on('match_found', (data) => {
         console.log('💫 매칭 성공:', data);
         callback(data);
+      });
+    }
+  }
+
+  // 매칭 에러 리스너
+  onMatchError(callback: (error: any) => void): void {
+    if (this.socket) {
+      this.socket.on('match_error', (error) => {
+        console.log('❌ 매칭 에러:', error);
+        callback(error);
       });
     }
   }

@@ -8,6 +8,7 @@ import {
   Platform,
   Animated,
 } from 'react-native';
+import { chatRoomManager } from '../services/chatRoomManager';
 
 interface Props {
   navigation: {
@@ -92,9 +93,27 @@ const MatchingResultScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleStartChat = () => {
     if (success && partner) {
-      // 매칭 성공 시 바로 채팅방으로 이동
+      // route.params에서 roomId를 가져와야 함
+      const roomId = route?.params?.roomId || partner.roomId || Date.now().toString();
+      
+      console.log('🏠 새 대화방 추가 - 매칭 성공:', {
+        roomId,
+        partnerName: partner.name,
+        routeParams: route?.params
+      });
+      
+      // chatRoomManager에 새 대화방 추가
+      chatRoomManager.addChatRoom({
+        id: roomId,
+        partnerName: partner.name,
+        partnerNickname: partner.name,
+        avatar: partner.avatar,
+        roomId: roomId,
+      });
+      
+      // 바로 채팅방으로 이동
       navigation.navigate('ChatRoom', {
-        roomId: partner.roomId || Date.now().toString(),
+        roomId: roomId,
         partnerName: partner.name,
         partnerId: partner.partnerId,
         avatar: partner.avatar,

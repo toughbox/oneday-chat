@@ -1,5 +1,7 @@
 import { socketService } from './socketService';
 import { fcmService } from './fcmService';
+import { userSessionManager } from './userSessionManager';
+import { Alert } from 'react-native';
 
 interface SocketMatchingService {
   requestMatch: (interests: string[], mood: string) => Promise<boolean>;
@@ -12,6 +14,8 @@ class SocketMatchingManager implements SocketMatchingService {
   public isMatching: boolean = false;
   private matchFoundCallback?: (matchData: any) => void;
   private serverUrl: string = 'http://toughbox.iptime.org:3000'; // 홈서버 DDNS 주소
+  private currentUserId: string = ''; // 앱 세션 동안 고정
+  private currentNickname: string = ''; // 앱 세션 동안 고정
 
   constructor() {
     // 초기화는 연결 시에 수행
@@ -37,6 +41,21 @@ class SocketMatchingManager implements SocketMatchingService {
       this.sendMatchNotification(data.partnerNickname || '익명');
     });
 
+    // 매칭 에러 리스너
+    socketService.onMatchError((error) => {
+      console.error('❌ Socket 매칭 에러:', error);
+      this.isMatching = false;
+      
+      // 에러 메시지를 사용자에게 표시
+      if (error.code === 'DUPLICATE_REQUEST') {
+        Alert.alert('매칭 오류', '이미 매칭 대기 중입니다.');
+      } else if (error.code === 'ALREADY_IN_ROOM') {
+        Alert.alert('매칭 오류', '이미 대화방에 참여 중입니다.');
+      } else {
+        Alert.alert('매칭 오류', error.message || '알 수 없는 오류가 발생했습니다.');
+      }
+    });
+
     // 연결 해제시 매칭 상태 리셋
     // socketService에서 disconnect 이벤트 처리
   }
@@ -45,6 +64,12 @@ class SocketMatchingManager implements SocketMatchingService {
   async requestMatch(interests: string[] = [], mood: string = ''): Promise<boolean> {
     try {
       console.log('🔍 Socket 매칭 요청 시작');
+
+      // 이미 매칭 중인지 확인
+      if (this.isMatching) {
+        console.log('⚠️ 이미 매칭 중입니다');
+        return false;
+      }
 
       // 서버 연결 확인/시도
       if (!socketService.isConnected()) {
@@ -60,10 +85,13 @@ class SocketMatchingManager implements SocketMatchingService {
         this.initializeListeners();
       }
 
-      // 사용자 정보 준비
+      // 사용자 정보 준비 (전역 세션에서 가져오기)
+      const userId = userSessionManager.getUserId();
+      const nickname = userSessionManager.getNickname();
+      
       const userInfo = {
-        userId: this.generateUserId(),
-        nickname: this.generateNickname(),
+        userId,
+        nickname,
         interests,
         mood,
         timestamp: Date.now(),

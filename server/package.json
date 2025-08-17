@@ -1,4 +1,4 @@
-/*{
+{
   "name": "oneday-chat-server",
   "version": "1.0.0",
   "description": "OneDay Chat Socket.io 매칭 서버",
@@ -19,4 +19,4 @@
   "keywords": ["socket.io", "chat", "matching", "nodejs"],
   "author": "OneDay Chat Team",
   "license": "MIT"
-}*/
+}

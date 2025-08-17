@@ -1,4 +1,4 @@
-/*const express = require('express');
+const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
@@ -25,6 +25,7 @@ const serverState = {
   connectedUsers: new Map(), // socketId -> userInfo
   waitingUsers: new Map(),   // userId -> userInfo
   activeRooms: new Map(),    // roomId -> { users: [], createdAt: Date }
+  userRooms: new Map(),      // userId -> Set<roomId> (사용자가 참여 중인 방 목록)
 };
 
 // 기본 라우트
@@ -48,9 +49,33 @@ app.get('/status', (req, res) => {
       roomId,
       userCount: room.users.length,
       createdAt: room.createdAt
-    }))
+    })),
+    userRooms: Object.fromEntries(
+      Array.from(serverState.userRooms.entries()).map(([userId, roomSet]) => [
+        userId, Array.from(roomSet)
+      ])
+    )
   });
 });
+
+// 활성 대화방에서 함께 있는 사용자들을 가져오는 함수
+function getActivePartners(userId) {
+  const partners = new Set();
+  const userRooms = serverState.userRooms.get(userId) || new Set();
+  
+  for (const roomId of userRooms) {
+    const room = serverState.activeRooms.get(roomId);
+    if (room) {
+      room.users.forEach(user => {
+        if (user.userId !== userId) {
+          partners.add(user.userId);
+        }
+      });
+    }
+  }
+  
+  return partners;
+}
 
 // Socket.io 연결 처리
 io.on('connection', (socket) => {
@@ -69,6 +94,26 @@ io.on('connection', (socket) => {
   // 매칭 요청
   socket.on('request_match', (userInfo) => {
     console.log(`🔍 매칭 요청: ${userInfo.nickname} (${userInfo.mood})`);
+    
+    // 중복 검증: 이미 대기열에 있는 사용자인지 확인
+    if (serverState.waitingUsers.has(userInfo.userId)) {
+      console.log(`⚠️ 중복 매칭 요청 감지: ${userInfo.nickname} (${userInfo.userId})`);
+      socket.emit('match_error', { 
+        message: '이미 매칭 대기 중입니다.',
+        code: 'DUPLICATE_REQUEST'
+      });
+      return;
+    }
+    
+    // 중복 검증: 이미 활성 대화방에 있는 사용자인지 확인
+    if (serverState.userRooms.has(userInfo.userId) && serverState.userRooms.get(userInfo.userId).size > 0) {
+      console.log(`⚠️ 활성 대화방 사용자 매칭 요청 감지: ${userInfo.nickname} (${userInfo.userId})`);
+      socket.emit('match_error', { 
+        message: '이미 대화방에 참여 중입니다.',
+        code: 'ALREADY_IN_ROOM'
+      });
+      return;
+    }
     
     // 현재 사용자를 대기열에 추가
     const waitingUser = {
@@ -108,6 +153,13 @@ io.on('connection', (socket) => {
     const user = serverState.connectedUsers.get(socket.id);
     if (user && !room.users.find(u => u.socketId === socket.id)) {
       room.users.push(user);
+      
+      // 사용자의 활성 방 목록 업데이트
+      if (!serverState.userRooms.has(user.userId)) {
+        serverState.userRooms.set(user.userId, new Set());
+      }
+      serverState.userRooms.get(user.userId).add(roomId);
+      console.log(`📝 ${user.nickname}의 활성 방 목록 업데이트:`, Array.from(serverState.userRooms.get(user.userId)));
     }
 
     // 다른 사용자에게 입장 알림
@@ -122,6 +174,8 @@ io.on('connection', (socket) => {
     console.log(`🚪 채팅방 나가기: ${socket.id} -> ${roomId}`);
     socket.leave(roomId);
     
+    const user = serverState.connectedUsers.get(socket.id);
+    
     // 방 정보 업데이트
     const room = serverState.activeRooms.get(roomId);
     if (room) {
@@ -131,9 +185,18 @@ io.on('connection', (socket) => {
         console.log(`🗑️ 빈 채팅방 삭제: ${roomId}`);
       }
     }
+    
+    // 사용자의 활성 방 목록에서 제거
+    if (user && serverState.userRooms.has(user.userId)) {
+      serverState.userRooms.get(user.userId).delete(roomId);
+      if (serverState.userRooms.get(user.userId).size === 0) {
+        serverState.userRooms.delete(user.userId);
+      }
+      console.log(`📝 ${user.nickname}이 ${roomId}에서 나감, 현재 활성 방:`, 
+        serverState.userRooms.has(user.userId) ? Array.from(serverState.userRooms.get(user.userId)) : []);
+    }
 
     // 다른 사용자에게 나감 알림
-    const user = serverState.connectedUsers.get(socket.id);
     socket.to(roomId).emit('user_left', {
       userId: user?.userId,
       nickname: user?.nickname
@@ -187,21 +250,42 @@ io.on('connection', (socket) => {
         }
       });
       
+      // 사용자의 활성 방 목록 삭제
+      serverState.userRooms.delete(user.userId);
+      console.log(`🧹 ${user.nickname}의 모든 활성 방 목록 삭제`);
+      
       // 연결된 사용자 목록에서 제거
       serverState.connectedUsers.delete(socket.id);
     }
   });
 });
 
-// 매칭 로직
+// 개선된 매칭 로직 - 이미 대화 중인 사용자 간 재매칭 방지
 function tryMatch(socket, currentUser) {
+  // 현재 사용자와 이미 대화 중인 파트너들 가져오기
+  const currentUserPartners = getActivePartners(currentUser.userId);
+  console.log(`🔍 ${currentUser.nickname}의 현재 대화 파트너들:`, Array.from(currentUserPartners));
+  
   const waitingUsers = Array.from(serverState.waitingUsers.values())
-    .filter(user => user.userId !== currentUser.userId);
+    .filter(user => {
+      // 자신 제외
+      if (user.userId === currentUser.userId) return false;
+      
+      // 이미 대화 중인 파트너 제외
+      if (currentUserPartners.has(user.userId)) {
+        console.log(`⏭️ ${user.nickname}는 이미 ${currentUser.nickname}과 대화 중이므로 제외`);
+        return false;
+      }
+      
+      return true;
+    });
 
   if (waitingUsers.length === 0) {
-    console.log(`⏳ 매칭 대기 중: ${currentUser.nickname}`);
+    console.log(`⏳ 매칭 대기 중: ${currentUser.nickname} (사용 가능한 파트너 없음)`);
     return;
   }
+
+  console.log(`👥 매칭 가능한 사용자들: ${waitingUsers.map(u => u.nickname).join(', ')}`);
 
   // 감정 기반 매칭 (같은 감정끼리 우선)
   let matchedUser = waitingUsers.find(user => user.mood === currentUser.mood);
@@ -214,6 +298,7 @@ function tryMatch(socket, currentUser) {
   // 매칭 성공
   const roomId = `room_${uuidv4()}`;
   console.log(`💫 매칭 성공: ${currentUser.nickname} ↔ ${matchedUser.nickname} (${roomId})`);
+  console.log(`📊 서버 상태 - 대기: ${serverState.waitingUsers.size - 2}명, 활성방: ${serverState.activeRooms.size + 1}개`);
 
   // 대기열에서 제거
   serverState.waitingUsers.delete(currentUser.userId);
@@ -263,6 +348,7 @@ function scheduleReset() {
     // 서버 상태 초기화
     serverState.waitingUsers.clear();
     serverState.activeRooms.clear();
+    serverState.userRooms.clear();
     
     // 다음 자정으로 다시 스케줄링
     scheduleReset();
@@ -291,4 +377,3 @@ process.on('SIGINT', () => {
     process.exit(0);
   });
 });
-*/

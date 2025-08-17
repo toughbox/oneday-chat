@@ -13,6 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import { socketChatService } from '../services/socketChatService';
+import { chatRoomManager } from '../services/chatRoomManager';
 
 const { width, height } = Dimensions.get('window');
 
@@ -59,12 +60,22 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
         setIsConnected(true);
         console.log(`✅ 채팅방 ${roomId} 연결 완료`);
         
+        // 읽지 않은 메시지 수 초기화
+        chatRoomManager.resetUnreadCount(roomId);
+        
         // 메시지 수신 리스너 등록
         socketChatService.onMessage((message: any) => {
-          console.log('📨 메시지 수신:', message);
-          // 내가 보낸 메시지는 이미 화면에 표시되어 있으므로 무시
-          if (message.sender === 'me') return;
+          console.log('📨 메시지 수신 - 전체 데이터:', JSON.stringify(message, null, 2));
+          console.log('📨 메시지 sender:', message.sender);
+          console.log('📨 메시지 text:', message.text);
           
+          // 내가 보낸 메시지는 이미 화면에 표시되어 있으므로 무시
+          if (message.sender === 'me') {
+            console.log('⏭️ 내가 보낸 메시지이므로 무시');
+            return;
+          }
+          
+          console.log('✅ 상대방 메시지로 처리:', message.text);
           const newMessage: Message = {
             id: message.id || Date.now().toString(),
             text: message.text,
@@ -73,6 +84,9 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
             status: 'read',
           };
           setMessages(prev => [...prev, newMessage]);
+          
+          // 대화방 목록의 마지막 메시지 업데이트
+          chatRoomManager.updateLastMessage(roomId, message.text, new Date(message.timestamp));
           
           // 스크롤을 맨 아래로
           setTimeout(() => {
@@ -151,6 +165,9 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
           msg.id === messageId ? { ...msg, status: 'sent' } : msg
         )
       );
+      
+      // 대화방 목록의 마지막 메시지 업데이트
+      chatRoomManager.updateLastMessage(roomId, messageText, new Date());
 
       console.log('📤 메시지 전송 완료:', messageText);
 

@@ -1,5 +1,6 @@
 import { socketService } from './socketService';
 import { serverConfig } from '../config/serverConfig';
+import { userSessionManager } from './userSessionManager';
 
 interface Message {
   id: string;
@@ -21,10 +22,10 @@ interface SocketChatService {
 }
 
 class SocketChatManager implements SocketChatService {
-  private currentUserId: string;
+  private currentUserId: string = '';
 
   constructor() {
-    this.currentUserId = this.generateUserId();
+    // userId는 socketMatchingService와 동일하게 설정되어야 함
     this.initializeListeners();
   }
 
@@ -32,6 +33,10 @@ class SocketChatManager implements SocketChatService {
   private initializeListeners(): void {
     // 메시지 수신
     socketService.onMessage((data) => {
+      console.log('🔍 socketChatService - 원본 서버 데이터:', JSON.stringify(data, null, 2));
+      console.log('🔍 현재 사용자 ID:', this.currentUserId);
+      console.log('🔍 메시지 발송자 ID:', data.userId);
+      
       const message: Message = {
         id: data.messageId || Date.now().toString(),
         text: data.message,
@@ -39,6 +44,8 @@ class SocketChatManager implements SocketChatService {
         timestamp: data.timestamp || new Date().toISOString(),
         roomId: data.roomId,
       };
+
+      console.log('🔍 변환된 메시지:', JSON.stringify(message, null, 2));
 
       if (this.messageCallback) {
         this.messageCallback(message);
@@ -86,6 +93,9 @@ class SocketChatManager implements SocketChatService {
         throw new Error('서버 연결 실패');
       }
     }
+    
+    // 전역 세션에서 userId 가져오기
+    this.currentUserId = userSessionManager.getUserId();
     
     // 채팅방 입장
     socketService.joinRoom(roomId);

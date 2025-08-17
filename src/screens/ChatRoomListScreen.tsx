@@ -12,18 +12,9 @@ import {
   PanResponder,
   Dimensions,
 } from 'react-native';
+import { chatRoomManager, ChatRoom } from '../services/chatRoomManager';
 
 const { width: screenWidth } = Dimensions.get('window');
-
-interface ChatRoom {
-  id: string;
-  partnerName: string;
-  lastMessage: string;
-  lastMessageTime: Date;
-  unreadCount: number;
-  isActive: boolean;
-  avatar: string;
-}
 
 interface Props {
   navigation: {
@@ -43,53 +34,42 @@ interface Props {
 }
 
 const ChatRoomListScreen: React.FC<Props> = ({ navigation, route }) => {
-  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([
-    {
-      id: '1',
-      partnerName: '익명의 누군가',
-      lastMessage: '고생하셨어요! 정말 대단하세요 ✨',
-      lastMessageTime: new Date(Date.now() - 60000), // 1분 전
-      unreadCount: 0,
-      isActive: true,
-      avatar: '🎭',
-    },
-    {
-      id: '2',
-      partnerName: '밤하늘의 별',
-      lastMessage: '안녕하세요! 처음 뵙겠습니다 😊',
-      lastMessageTime: new Date(Date.now() - 300000), // 5분 전
-      unreadCount: 2,
-      isActive: true,
-      avatar: '⭐',
-    },
-    {
-      id: '3',
-      partnerName: '달빛 여행자',
-      lastMessage: '오늘 하루 어떠셨어요?',
-      lastMessageTime: new Date(Date.now() - 600000), // 10분 전
-      unreadCount: 1,
-      isActive: true,
-      avatar: '🌙',
-    },
-  ]);
-
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [timeLeft, setTimeLeft] = useState('18:23:45'); // 더미 타이머
 
-  // 새 대화방 추가 처리
+  // 대화방 목록 초기화 및 변경 리스너 등록
+  useEffect(() => {
+    console.log('🏠 대화방 목록 화면 초기화');
+    
+    // 초기 대화방 목록 설정
+    setChatRooms(chatRoomManager.getChatRooms());
+    
+    // 대화방 변경 리스너 등록
+    chatRoomManager.onChatRoomsChange((updatedRooms) => {
+      console.log('🔄 대화방 목록 업데이트:', updatedRooms.length);
+      setChatRooms(updatedRooms);
+    });
+    
+    return () => {
+      // 컴포넌트 언마운트 시 정리
+      chatRoomManager.onChatRoomsChange(() => {});
+    };
+  }, []);
+
+  // 새 대화방 추가 처리 (매칭 성공 시)
   useEffect(() => {
     if (route?.params?.newChatRoom) {
       const newRoom = route.params.newChatRoom;
-      const newChatRoom: ChatRoom = {
+      console.log('📥 새 대화방 추가 요청:', newRoom);
+      
+      // chatRoomManager에 추가
+      chatRoomManager.addChatRoom({
         id: newRoom.id,
         partnerName: newRoom.partnerName,
-        lastMessage: newRoom.welcomeMessage,
-        lastMessageTime: newRoom.createdAt,
-        unreadCount: 1,
-        isActive: true,
+        partnerNickname: newRoom.partnerName,
         avatar: newRoom.avatar,
-      };
-      
-      setChatRooms(prevRooms => [newChatRoom, ...prevRooms]);
+        roomId: newRoom.id,
+      });
       
       // 매개변수 초기화 (중복 추가 방지)
       navigation.navigate('ChatRoomList', {});
@@ -143,7 +123,8 @@ const ChatRoomListScreen: React.FC<Props> = ({ navigation, route }) => {
           text: '나가기',
           style: 'destructive',
           onPress: () => {
-            setChatRooms(prevRooms => prevRooms.filter(room => room.id !== roomId));
+            console.log('🚪 대화방 나가기:', roomId);
+            chatRoomManager.removeChatRoom(roomId);
           },
         },
       ]
