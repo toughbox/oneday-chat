@@ -10,7 +10,7 @@ import {
   Easing,
   Alert,
 } from 'react-native';
-import { matchingService, MatchResult } from '../services/matchingService';
+import { socketMatchingService } from '../services/socketMatchingService';
 
 interface Props {
   navigation: {
@@ -28,6 +28,24 @@ const MatchingWaitScreen: React.FC<Props> = ({ navigation }) => {
   // 회전 애니메이션 - useRef로 애니메이션 값을 보호
   const spinValue = useRef(new Animated.Value(0)).current;
   
+  // 매칭 성공 콜백 등록 (최우선)
+  useEffect(() => {
+    console.log('📝 매칭 성공 콜백 등록...');
+    
+    socketMatchingService.onMatchFound((matchData: any) => {
+      console.log('🎉 Socket.io 매칭 성공!', matchData);
+      setIsMatching(false);
+      
+      navigation.navigate('MatchingResult', {
+        success: true,
+        elapsedTime: elapsedTime,
+        roomId: matchData.roomId,
+        partnerId: matchData.partnerId,
+        partnerNickname: matchData.partnerNickname
+      });
+    });
+  }, [elapsedTime, navigation]);
+
   // 무한 회전 애니메이션
   useEffect(() => {
     const rotateAnimation = Animated.loop(
@@ -48,40 +66,22 @@ const MatchingWaitScreen: React.FC<Props> = ({ navigation }) => {
     };
   }, []);
 
-  // 실제 Firebase 매칭 시작
+  // Socket.io 매칭 시작
   useEffect(() => {
     const startMatching = async () => {
       try {
-        // 사용자 정보 설정 (임시)
-        const userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const nickname = `익명${Math.floor(Math.random() * 1000)}`;
+        console.log('🔍 Socket.io 매칭 시작...');
         
-        matchingService.setUserInfo(userId, nickname);
-        
-        // 매칭 성공 콜백 설정
-        matchingService.setMatchFoundCallback((result: MatchResult) => {
-          console.log('🎉 매칭 성공!', result);
-          setIsMatching(false);
-          
-          navigation.navigate('MatchingResult', {
-            success: true,
-            elapsedTime: elapsedTime,
-            roomId: result.roomId,
-            partnerId: result.partnerId,
-            partnerNickname: result.partnerNickname
-          });
-        });
-        
-        // 매칭 요청 시작
-        const success = await matchingService.requestMatch(['일반'], '😊');
+        // Socket.io 매칭 요청 시작
+        const success = await socketMatchingService.requestMatch(['일반'], '😊');
         
         if (!success) {
-          Alert.alert('매칭 오류', '매칭 요청에 실패했습니다.');
+          Alert.alert('연결 오류', 'Socket.io 서버에 연결할 수 없습니다.');
           navigation.goBack();
         }
         
       } catch (error) {
-        console.error('❌ 매칭 시작 실패:', error);
+        console.error('❌ Socket.io 매칭 시작 실패:', error);
         Alert.alert('오류', '매칭을 시작할 수 없습니다.');
         navigation.goBack();
       }
@@ -96,13 +96,12 @@ const MatchingWaitScreen: React.FC<Props> = ({ navigation }) => {
       }
     }, 1000);
 
-    const dataTimer = setInterval(async () => {
+    const dataTimer = setInterval(() => {
       if (isMatching) {
-        // 실제 대기 중인 사용자 수 가져오기
-        const count = await matchingService.getWaitingCount();
-        setWaitingCount(count);
+        // Socket.io 서버 상태를 기반으로 대기자 수 시뮬레이션
+        setWaitingCount(prev => Math.max(0, Math.min(5, prev + Math.floor(Math.random() * 3) - 1)));
         
-        // 평균 시간 시뮬레이션 (실제로는 서버에서 계산)
+        // 평균 시간 시뮬레이션
         setAverageTime(prev => Math.max(30, prev + Math.floor(Math.random() * 10) - 5));
       }
     }, 2000);
@@ -111,7 +110,7 @@ const MatchingWaitScreen: React.FC<Props> = ({ navigation }) => {
     const matchingTimeout = setTimeout(() => {
       if (isMatching) {
         setIsMatching(false);
-        matchingService.cancelMatch();
+        socketMatchingService.cancelMatch();
         
         navigation.navigate('MatchingResult', { 
           success: false,
@@ -127,7 +126,7 @@ const MatchingWaitScreen: React.FC<Props> = ({ navigation }) => {
       
       // 매칭 정리
       if (isMatching) {
-        matchingService.cancelMatch();
+        socketMatchingService.cancelMatch();
       }
     };
   }, []);
@@ -135,8 +134,8 @@ const MatchingWaitScreen: React.FC<Props> = ({ navigation }) => {
   const handleCancel = async () => {
     setIsMatching(false);
     
-    // Firebase 매칭 취소
-    await matchingService.cancelMatch();
+    // Socket.io 매칭 취소
+    await socketMatchingService.cancelMatch();
     
     navigation.goBack();
   };

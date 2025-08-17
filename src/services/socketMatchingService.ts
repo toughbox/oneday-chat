@@ -14,18 +14,23 @@ class SocketMatchingManager implements SocketMatchingService {
   private serverUrl: string = 'http://toughbox.iptime.org:3000'; // 홈서버 DDNS 주소
 
   constructor() {
-    this.initializeListeners();
+    // 초기화는 연결 시에 수행
   }
 
-  // Socket 이벤트 리스너 초기화
+  // Socket 이벤트 리스너 초기화 (연결 후)
   private initializeListeners(): void {
+    console.log('🎧 Socket 매칭 서비스 리스너 초기화');
+    
     // 매칭 성공 리스너
     socketService.onMatchFound((data) => {
-      console.log('💫 Socket 매칭 성공:', data);
+      console.log('💫 Socket 매칭 성공 이벤트 수신:', data);
       this.isMatching = false;
       
       if (this.matchFoundCallback) {
+        console.log('📞 매칭 콜백 실행');
         this.matchFoundCallback(data);
+      } else {
+        console.warn('⚠️ 매칭 콜백이 등록되지 않았습니다!');
       }
 
       // FCM 알림 발송
@@ -50,6 +55,9 @@ class SocketMatchingManager implements SocketMatchingService {
           console.error('❌ Socket 서버 연결 실패');
           return false;
         }
+        
+        // 연결 성공 후 이벤트 리스너 초기화
+        this.initializeListeners();
       }
 
       // 사용자 정보 준비

@@ -12,6 +12,7 @@ import {
   Dimensions,
   Alert,
 } from 'react-native';
+import { socketChatService } from '../services/socketChatService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -37,121 +38,72 @@ interface Props {
 
 const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
   const roomId = route?.params?.roomId || '1';
-  const [messages, setMessages] = useState<Message[]>([
-    // 더미 데이터로 채팅 테스트
-    {
-      id: '1',
-      text: '안녕하세요! 반가워요 😊',
-      isMyMessage: false,
-      timestamp: new Date(Date.now() - 900000), // 15분 전
-      status: 'read',
-    },
-    {
-      id: '2', 
-      text: '안녕하세요! 익명 채팅 처음이에요',
-      isMyMessage: true,
-      timestamp: new Date(Date.now() - 840000), // 14분 전
-      status: 'read',
-    },
-    {
-      id: '3',
-      text: '저도 처음이에요! 신기하네요 ✨',
-      isMyMessage: false,
-      timestamp: new Date(Date.now() - 780000), // 13분 전
-      status: 'read',
-    },
-    {
-      id: '4',
-      text: '24시간 후에 대화가 사라진다니 특별한 것 같아요',
-      isMyMessage: true,
-      timestamp: new Date(Date.now() - 720000), // 12분 전
-      status: 'read',
-    },
-    {
-      id: '5',
-      text: '맞아요! 그래서 더 솔직하게 대화할 수 있는 것 같아요',
-      isMyMessage: false,
-      timestamp: new Date(Date.now() - 660000), // 11분 전
-      status: 'read',
-    },
-    {
-      id: '6',
-      text: '어떤 얘기 해볼까요? 🤔',
-      isMyMessage: false,
-      timestamp: new Date(Date.now() - 600000), // 10분 전
-      status: 'read',
-    },
-    {
-      id: '7',
-      text: '음... 오늘 뭐 하셨어요?',
-      isMyMessage: true,
-      timestamp: new Date(Date.now() - 540000), // 9분 전
-      status: 'read',
-    },
-    {
-      id: '8',
-      text: '저는 새로운 앱 개발하고 있었어요! 지금 테스트 중이에요 😄',
-      isMyMessage: false,
-      timestamp: new Date(Date.now() - 480000), // 8분 전
-      status: 'read',
-    },
-    {
-      id: '9',
-      text: '우와 개발자시네요! 멋있어요 👨‍💻',
-      isMyMessage: true,
-      timestamp: new Date(Date.now() - 420000), // 7분 전
-      status: 'read',
-    },
-    {
-      id: '10',
-      text: '감사합니다 ㅎㅎ 이 채팅앱도 제가 만든거예요',
-      isMyMessage: false,
-      timestamp: new Date(Date.now() - 360000), // 6분 전
-      status: 'read',
-    },
-    {
-      id: '11',
-      text: '진짜요?! 대박이네요!! 🎉',
-      isMyMessage: true,
-      timestamp: new Date(Date.now() - 300000), // 5분 전
-      status: 'read',
-    },
-    {
-      id: '12',
-      text: '아직 개발 중이라 완벽하지 않지만... 어떤가요?',
-      isMyMessage: false,
-      timestamp: new Date(Date.now() - 240000), // 4분 전
-      status: 'read',
-    },
-    {
-      id: '13',
-      text: '정말 잘 만드신 것 같아요! UI도 예쁘고 👍',
-      isMyMessage: true,
-      timestamp: new Date(Date.now() - 180000), // 3분 전
-      status: 'read',
-    },
-    {
-      id: '14',
-      text: '고마워요! 밤새서 만들었거든요 😅',
-      isMyMessage: false,
-      timestamp: new Date(Date.now() - 120000), // 2분 전
-      status: 'read',
-    },
-    {
-      id: '15',
-      text: '고생하셨어요! 정말 대단하세요 ✨',
-      isMyMessage: true,
-      timestamp: new Date(Date.now() - 60000), // 1분 전
-      status: 'read',
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [timeLeft, setTimeLeft] = useState('23:45:30'); // 더미 타이머
   const [showMenu, setShowMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Socket.io 초기화 및 채팅방 연결
+  useEffect(() => {
+    const initializeChat = async () => {
+      try {
+        console.log(`🚀 채팅방 ${roomId} 연결 시도...`);
+        
+        // 채팅방 입장
+        await socketChatService.joinRoom(roomId);
+        setIsConnected(true);
+        console.log(`✅ 채팅방 ${roomId} 연결 완료`);
+        
+        // 메시지 수신 리스너 등록
+        socketChatService.onMessage((message: any) => {
+          console.log('📨 메시지 수신:', message);
+          // 내가 보낸 메시지는 이미 화면에 표시되어 있으므로 무시
+          if (message.sender === 'me') return;
+          
+          const newMessage: Message = {
+            id: message.id || Date.now().toString(),
+            text: message.text,
+            isMyMessage: false,
+            timestamp: new Date(message.timestamp),
+            status: 'read',
+          };
+          setMessages(prev => [...prev, newMessage]);
+          
+          // 스크롤을 맨 아래로
+          setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        });
+        
+      } catch (error) {
+        console.error('❌ 채팅방 연결 실패:', error);
+        setIsConnected(false);
+        Alert.alert(
+          '연결 실패',
+          '채팅방에 연결할 수 없습니다. 네트워크를 확인해주세요.',
+          [
+            {
+              text: '확인',
+              onPress: () => navigation?.goBack(),
+            },
+          ]
+        );
+      }
+    };
+
+    initializeChat();
+
+    // 컴포넌트 언마운트 시 채팅방 나가기
+    return () => {
+      socketChatService.leaveRoom(roomId);
+      console.log(`👋 채팅방 ${roomId} 연결 해제`);
+    };
+  }, [roomId, navigation]);
 
   // 24시간 타이머 시뮬레이션
   useEffect(() => {
@@ -171,12 +123,16 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
     return () => clearInterval(timer);
   }, []);
 
-  const sendMessage = () => {
-    if (inputText.trim() === '') return;
+  const sendMessage = async () => {
+    if (inputText.trim() === '' || !isConnected) return;
 
+    const messageText = inputText.trim();
+    const messageId = Date.now().toString();
+
+    // 내 메시지를 화면에 즉시 표시
     const newMessage: Message = {
-      id: Date.now().toString(),
-      text: inputText.trim(),
+      id: messageId,
+      text: messageText,
       isMyMessage: true,
       timestamp: new Date(),
       status: 'sending',
@@ -185,50 +141,45 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
     setMessages(prev => [...prev, newMessage]);
     setInputText('');
 
-    // 메시지 전송 시뮬레이션
-    setTimeout(() => {
+    try {
+      // Socket.io로 메시지 전송
+      socketChatService.sendMessage(roomId, messageText);
+
+      // 전송 완료 상태로 업데이트
       setMessages(prev =>
         prev.map(msg =>
-          msg.id === newMessage.id ? { ...msg, status: 'sent' } : msg
+          msg.id === messageId ? { ...msg, status: 'sent' } : msg
         )
       );
-    }, 1000);
 
-    // 상대방 응답 시뮬레이션 (실제 서버 연결 시 제거)
-    const replies = [
-      "정말요? 흥미롭네요! 😊",
-      "그렇군요~ 더 알려주세요!",
-      "아하! 그런 의미였군요 🤔", 
-      "와 신기해요! 저도 비슷한 경험이 있어요",
-      "맞아요! 저도 그렇게 생각해요 ✨",
-      "오늘 정말 재미있는 대화네요!",
-      "시간이 너무 빨리 가는 것 같아요 ⏰",
-      "익명 채팅이라 더 편하게 얘기하게 되네요 😄",
-      "그런 일이 있었군요! 재미있어요 🎭",
-      "저도 그런 생각 해본 적 있어요",
-      "정말 공감해요! 👍",
-      "새로운 관점이네요!",
-      "좋은 말씀이에요 ✨",
-      "어머 그럼 어떻게 하셨어요?",
-      "대화가 즐거워요 😊"
-    ];
-    
-    // 타이핑 상태 시뮬레이션
-    setTimeout(() => {
-      setIsTyping(true);
-    }, 2000 + Math.random() * 1000);
-    
-    setTimeout(() => {
-      setIsTyping(false);
-      const randomReply = replies[Math.floor(Math.random() * replies.length)];
-      setMessages(prevMessages => [...prevMessages, {
-        id: Date.now().toString() + '_reply',
-        text: randomReply,
-        isMyMessage: false,
-        timestamp: new Date(),
-        status: 'read'
-      }]);
-    }, 3000 + Math.random() * 2000); // 3-5초 랜덤 딜레이
+      console.log('📤 메시지 전송 완료:', messageText);
+
+    } catch (error) {
+      console.error('❌ 메시지 전송 실패:', error);
+      
+      // 전송 실패 시 메시지 제거 또는 재전송 옵션 제공
+      Alert.alert(
+        '전송 실패',
+        '메시지를 전송할 수 없습니다. 다시 시도하시겠어요?',
+        [
+          {
+            text: '취소',
+            onPress: () => {
+              // 실패한 메시지 제거
+              setMessages(prev => prev.filter(msg => msg.id !== messageId));
+            },
+          },
+          {
+            text: '재시도',
+            onPress: () => {
+              // 재전송 시도
+              setInputText(messageText);
+              setMessages(prev => prev.filter(msg => msg.id !== messageId));
+            },
+          },
+        ]
+      );
+    }
 
     // 스크롤을 맨 아래로
     setTimeout(() => {
@@ -296,8 +247,8 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
           </View>
           <View>
             <Text style={styles.partnerName}>익명의 누군가</Text>
-            <Text style={styles.onlineStatus}>
-              {isTyping ? '입력 중...' : '온라인'}
+            <Text style={[styles.onlineStatus, { color: isConnected ? '#10b981' : '#ef4444' }]}>
+              {isTyping ? '입력 중...' : isConnected ? '온라인' : '연결 중...'}
             </Text>
           </View>
         </View>
@@ -448,12 +399,14 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
             <TouchableOpacity
               style={[
                 styles.sendButton,
-                inputText.trim() ? styles.sendButtonActive : styles.sendButtonInactive,
+                (inputText.trim() && isConnected) ? styles.sendButtonActive : styles.sendButtonInactive,
               ]}
               onPress={sendMessage}
-              disabled={!inputText.trim()}
+              disabled={!inputText.trim() || !isConnected}
             >
-              <Text style={styles.sendButtonText}>전송</Text>
+              <Text style={styles.sendButtonText}>
+                {isConnected ? '전송' : '연결중'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -1,4 +1,5 @@
 import { socketService } from './socketService';
+import { serverConfig } from '../config/serverConfig';
 
 interface Message {
   id: string;
@@ -9,7 +10,7 @@ interface Message {
 }
 
 interface SocketChatService {
-  joinRoom: (roomId: string) => void;
+  joinRoom: (roomId: string) => Promise<void>;
   leaveRoom: (roomId: string) => void;
   sendMessage: (roomId: string, text: string) => void;
   onMessage: (callback: (message: Message) => void) => void;
@@ -74,9 +75,21 @@ class SocketChatManager implements SocketChatService {
   private userLeftCallback?: (data: any) => void;
 
   // 채팅방 입장
-  joinRoom(roomId: string): void {
-    console.log('🏠 Socket 채팅방 입장:', roomId);
+  async joinRoom(roomId: string): Promise<void> {
+    console.log('🏠 Socket 채팅방 입장 시도:', roomId);
+    
+    // 먼저 서버에 연결
+    if (!socketService.isConnected()) {
+      console.log('🔌 서버 연결 시도...');
+      const connected = await socketService.connect(serverConfig.socketUrl);
+      if (!connected) {
+        throw new Error('서버 연결 실패');
+      }
+    }
+    
+    // 채팅방 입장
     socketService.joinRoom(roomId);
+    console.log('✅ Socket 채팅방 입장 완료:', roomId);
   }
 
   // 채팅방 퇴장

@@ -92,17 +92,12 @@ const MatchingResultScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleStartChat = () => {
     if (success && partner) {
-      // Firebase에서 받은 실제 roomId와 파트너 정보로 대화방 이동
-      navigation.navigate('ChatRoomList', {
-        newChatRoom: {
-          id: partner.roomId || Date.now().toString(),
-          partnerName: partner.name,
-          partnerId: partner.partnerId,
-          avatar: partner.avatar,
-          welcomeMessage: partner.welcomeMessage,
-          createdAt: new Date(),
-          isFirebaseRoom: true, // Firebase 기반 대화방 표시
-        }
+      // 매칭 성공 시 바로 채팅방으로 이동
+      navigation.navigate('ChatRoom', {
+        roomId: partner.roomId || Date.now().toString(),
+        partnerName: partner.name,
+        partnerId: partner.partnerId,
+        avatar: partner.avatar,
       });
     }
   };
