@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { socketChatService } from '../services/socketChatService';
 import { chatRoomManager } from '../services/chatRoomManager';
+import { userSessionManager } from '../services/userSessionManager';
 
 const { width, height } = Dimensions.get('window');
 
@@ -63,6 +64,35 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
         // 읽지 않은 메시지 수 초기화
         chatRoomManager.resetUnreadCount(roomId);
         
+        // 이전 메시지 수신 리스너 등록
+        socketChatService.onPreviousMessages((data) => {
+          console.log('📚 이전 메시지 수신:', data);
+          if (data.roomId === roomId) {
+            const previousMessages: Message[] = data.messages.map((msg: any) => ({
+              id: msg.messageId || `prev_${msg.messageId || Date.now()}_${Math.random()}`, // 고유 ID 생성
+              text: msg.message,
+              isMyMessage: msg.userId === userSessionManager.getUserId(),
+              timestamp: new Date(msg.timestamp),
+              status: 'read',
+            }));
+            
+            console.log(`📚 이전 메시지 ${previousMessages.length}개 화면에 표시`);
+            // 중복 메시지 방지: 이미 있는 메시지 ID와 비교
+            setMessages(prev => {
+              const existingIds = new Set(prev.map(m => m.text + m.timestamp.getTime()));
+              const newMessages = previousMessages.filter(msg => 
+                !existingIds.has(msg.text + msg.timestamp.getTime())
+              );
+              return [...prev, ...newMessages];
+            });
+            
+            // 스크롤을 맨 아래로
+            setTimeout(() => {
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+          }
+        });
+
         // 메시지 수신 리스너 등록
         socketChatService.onMessage((message: any) => {
           console.log('📨 메시지 수신 - 전체 데이터:', JSON.stringify(message, null, 2));
@@ -77,13 +107,25 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
           
           console.log('✅ 상대방 메시지로 처리:', message.text);
           const newMessage: Message = {
-            id: message.id || Date.now().toString(),
+            id: message.id || `new_${Date.now()}_${Math.random()}`, // 고유 ID 생성
             text: message.text,
             isMyMessage: false,
             timestamp: new Date(message.timestamp),
             status: 'read',
           };
-          setMessages(prev => [...prev, newMessage]);
+          
+          // 중복 메시지 방지
+          setMessages(prev => {
+            const isDuplicate = prev.some(msg => 
+              msg.text === newMessage.text && 
+              Math.abs(msg.timestamp.getTime() - newMessage.timestamp.getTime()) < 1000 // 1초 이내
+            );
+            if (isDuplicate) {
+              console.log('⏭️ 중복 메시지 감지, 무시:', newMessage.text);
+              return prev;
+            }
+            return [...prev, newMessage];
+          });
           
           // 대화방 목록의 마지막 메시지 업데이트
           chatRoomManager.updateLastMessage(roomId, message.text, new Date(message.timestamp));
@@ -141,7 +183,7 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
     if (inputText.trim() === '' || !isConnected) return;
 
     const messageText = inputText.trim();
-    const messageId = Date.now().toString();
+    const messageId = `my_${Date.now()}_${Math.random()}`; // 고유 ID 생성
 
     // 내 메시지를 화면에 즉시 표시
     const newMessage: Message = {

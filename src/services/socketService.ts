@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { userSessionManager } from './userSessionManager';
 
 interface SocketService {
   connect: (serverUrl: string) => Promise<boolean>;
@@ -39,6 +40,18 @@ class SocketManager implements SocketService {
 
         this.socket.on('connect', () => {
           console.log('✅ Socket.io 연결 성공:', this.socket?.id);
+          
+          // 연결 성공 후 사용자 등록
+          if (this.socket) {
+            const userInfo = {
+              userId: userSessionManager.getUserId(),
+              nickname: userSessionManager.getNickname(),
+              mood: 'neutral'
+            };
+            this.socket.emit('register_user', userInfo);
+            console.log('👤 사용자 등록 완료:', userInfo);
+          }
+          
           resolve(true);
         });
 
@@ -103,6 +116,7 @@ class SocketManager implements SocketService {
         message: message.text,
         timestamp: new Date().toISOString(),
         messageId: Date.now().toString(),
+        sender: message.userId, // sender 정보 추가
         ...message
       };
       
@@ -202,6 +216,16 @@ class SocketManager implements SocketService {
   onTyping(callback: (data: { roomId: string; userId: string; isTyping: boolean }) => void): void {
     if (this.socket) {
       this.socket.on('user_typing', callback);
+    }
+  }
+
+  // 이전 메시지 수신 리스너
+  onPreviousMessages(callback: (data: { roomId: string; messages: any[] }) => void): void {
+    if (this.socket) {
+      this.socket.on('previous_messages', (data) => {
+        console.log('📚 이전 메시지 수신:', data);
+        callback(data);
+      });
     }
   }
 }

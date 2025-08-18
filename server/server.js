@@ -26,6 +26,7 @@ const serverState = {
   waitingUsers: new Map(),   // userId -> userInfo
   activeRooms: new Map(),    // roomId -> { users: [], createdAt: Date }
   userRooms: new Map(),      // userId -> Set<roomId> (사용자가 참여 중인 방 목록)
+  roomMessages: new Map(),   // roomId -> Message[] (방별 메시지 저장)
 };
 
 // 기본 라우트
@@ -137,7 +138,8 @@ io.on('connection', (socket) => {
   });
 
   // 채팅방 입장
-  socket.on('join_room', (roomId) => {
+  socket.on('join_room', (data) => {
+    const roomId = data.roomId; // 객체에서 roomId 추출
     console.log(`🏠 채팅방 입장: ${socket.id} -> ${roomId}`);
     socket.join(roomId);
     
@@ -162,6 +164,16 @@ io.on('connection', (socket) => {
       console.log(`📝 ${user.nickname}의 활성 방 목록 업데이트:`, Array.from(serverState.userRooms.get(user.userId)));
     }
 
+    // 이전 메시지 전송 (재입장 시)
+    const previousMessages = serverState.roomMessages.get(roomId) || [];
+    if (previousMessages.length > 0) {
+      console.log(`📚 ${roomId}의 이전 메시지 ${previousMessages.length}개 전송`);
+      socket.emit('previous_messages', {
+        roomId,
+        messages: previousMessages
+      });
+    }
+    
     // 다른 사용자에게 입장 알림
     socket.to(roomId).emit('user_joined', {
       userId: user?.userId,
@@ -170,20 +182,19 @@ io.on('connection', (socket) => {
   });
 
   // 채팅방 나가기
-  socket.on('leave_room', (roomId) => {
+  socket.on('leave_room', (data) => {
+    const roomId = data.roomId; // 객체에서 roomId 추출
     console.log(`🚪 채팅방 나가기: ${socket.id} -> ${roomId}`);
     socket.leave(roomId);
     
     const user = serverState.connectedUsers.get(socket.id);
     
-    // 방 정보 업데이트
+    // 방 정보 업데이트 (방은 유지, 사용자만 제거)
     const room = serverState.activeRooms.get(roomId);
     if (room) {
       room.users = room.users.filter(u => u.socketId !== socket.id);
-      if (room.users.length === 0) {
-        serverState.activeRooms.delete(roomId);
-        console.log(`🗑️ 빈 채팅방 삭제: ${roomId}`);
-      }
+      // 방이 비어있어도 삭제하지 않음 (12시까지 유지)
+      console.log(`📝 ${roomId}에서 사용자 제거, 현재 사용자 수: ${room.users.length}`);
     }
     
     // 사용자의 활성 방 목록에서 제거
@@ -210,15 +221,25 @@ io.on('connection', (socket) => {
     
     console.log(`💬 메시지 전송: ${user?.nickname} -> ${roomId}: ${message}`);
     
-    // 같은 방의 다른 사용자들에게 메시지 전달
-    socket.to(roomId).emit('receive_message', {
+    // 메시지 저장
+    if (!serverState.roomMessages.has(roomId)) {
+      serverState.roomMessages.set(roomId, []);
+    }
+    
+    const messageData = {
       messageId: uuidv4(),
       userId: user?.userId,
       nickname: user?.nickname,
       message,
       timestamp,
       type: 'received'
-    });
+    };
+    
+    serverState.roomMessages.get(roomId).push(messageData);
+    console.log(`💾 메시지 저장: ${roomId}에 메시지 ${serverState.roomMessages.get(roomId).length}개`);
+    
+    // 같은 방의 다른 사용자들에게 메시지 전달
+    socket.to(roomId).emit('receive_message', messageData);
   });
 
   // 타이핑 상태 전송
@@ -242,12 +263,11 @@ io.on('connection', (socket) => {
       // 대기열에서 제거
       serverState.waitingUsers.delete(user.userId);
       
-      // 활성 방에서 제거
+      // 활성 방에서 제거 (방은 유지, 사용자만 제거)
       serverState.activeRooms.forEach((room, roomId) => {
         room.users = room.users.filter(u => u.socketId !== socket.id);
-        if (room.users.length === 0) {
-          serverState.activeRooms.delete(roomId);
-        }
+        // 방이 비어있어도 삭제하지 않음 (12시까지 유지)
+        console.log(`📝 ${roomId}에서 연결 해제된 사용자 제거, 현재 사용자 수: ${room.users.length}`);
       });
       
       // 사용자의 활성 방 목록 삭제
@@ -349,6 +369,7 @@ function scheduleReset() {
     serverState.waitingUsers.clear();
     serverState.activeRooms.clear();
     serverState.userRooms.clear();
+    serverState.roomMessages.clear(); // 메시지도 초기화
     
     // 다음 자정으로 다시 스케줄링
     scheduleReset();

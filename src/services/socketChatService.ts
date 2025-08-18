@@ -80,6 +80,8 @@ class SocketChatManager implements SocketChatService {
   private typingCallback?: (data: { roomId: string; isTyping: boolean }) => void;
   private userJoinedCallback?: (data: any) => void;
   private userLeftCallback?: (data: any) => void;
+  private previousMessagesCallback?: (data: { roomId: string; messages: any[] }) => void;
+  private previousMessagesListenerRegistered: boolean = false;
 
   // 채팅방 입장
   async joinRoom(roomId: string): Promise<void> {
@@ -96,6 +98,16 @@ class SocketChatManager implements SocketChatService {
     
     // 전역 세션에서 userId 가져오기
     this.currentUserId = userSessionManager.getUserId();
+    
+    // 이전 메시지 리스너는 한 번만 등록 (중복 방지)
+    if (!this.previousMessagesListenerRegistered) {
+      socketService.onPreviousMessages((data) => {
+        if (this.previousMessagesCallback) {
+          this.previousMessagesCallback(data);
+        }
+      });
+      this.previousMessagesListenerRegistered = true;
+    }
     
     // 채팅방 입장
     socketService.joinRoom(roomId);
@@ -144,6 +156,11 @@ class SocketChatManager implements SocketChatService {
   // 사용자 퇴장 콜백
   onUserLeft(callback: (data: any) => void): void {
     this.userLeftCallback = callback;
+  }
+
+  // 이전 메시지 수신 콜백
+  onPreviousMessages(callback: (data: { roomId: string; messages: any[] }) => void): void {
+    this.previousMessagesCallback = callback;
   }
 
   // 사용자 ID 생성
