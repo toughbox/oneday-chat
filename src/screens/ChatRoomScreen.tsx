@@ -259,8 +259,22 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
           text: '나가기',
           style: 'destructive',
           onPress: () => {
-            // TODO: 대화방 데이터 삭제 로직
-            navigation?.goBack();
+            console.log('🚪 대화방 나가기 시작...');
+            
+            // 1. Socket.io 서버에 방 나가기 요청
+            if (socketChatService && roomId) {
+              socketChatService.leaveRoom(roomId);
+              console.log('✅ Socket.io 방 나가기 요청 완료:', roomId);
+            }
+            
+            // 2. 대화방 목록에서도 제거 (스와이프 나가기와 동일)
+            console.log('🗑️ 대화방 목록에서 제거:', roomId);
+            chatRoomManager.removeChatRoom(roomId);
+            
+            // 3. 화면 이동
+            setTimeout(() => {
+              navigation?.goBack();
+            }, 100);
           },
         },
       ]

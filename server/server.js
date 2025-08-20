@@ -212,6 +212,14 @@ io.on('connection', (socket) => {
       userId: user?.userId,
       nickname: user?.nickname
     });
+
+    // 방 나가기 완료 확인을 클라이언트에 전송
+    socket.emit('leave_room_complete', {
+      roomId: roomId,
+      success: true
+    });
+    
+    console.log(`✅ ${roomId}에서 ${user?.nickname} 방 나가기 완료`);
   });
 
   // 메시지 전송
@@ -228,6 +236,7 @@ io.on('connection', (socket) => {
     
     const messageData = {
       messageId: uuidv4(),
+      roomId: roomId,  // roomId 추가!
       userId: user?.userId,
       nickname: user?.nickname,
       message,
