@@ -8,6 +8,7 @@ interface MidnightResetService {
 }
 
 import { fcmService } from '../services/fcmService';
+import { chatStorageService } from '../services/chatStorageService';
 
 class MidnightResetManager implements MidnightResetService {
   private midnightTimer: NodeJS.Timeout | null = null;
@@ -42,17 +43,21 @@ class MidnightResetManager implements MidnightResetService {
     }
   }
 
-  // 모든 로컬 데이터 삭제 (메모리 기반)
+  // 모든 로컬 데이터 삭제 (AsyncStorage 포함)
   async clearAllData(): Promise<void> {
     try {
       console.log('🧹 자정 데이터 정리 시작...');
       
-      // 앱 상태 초기화 콜백 호출
+      // 1. AsyncStorage의 모든 채팅 데이터 삭제
+      await chatStorageService.clearAllData();
+      console.log('✅ 로컬 저장소 채팅 데이터 삭제 완료');
+      
+      // 2. 앱 상태 초기화 콜백 호출
       if (this.onDataClear) {
         this.onDataClear();
       }
       
-      console.log('🧹 자정 데이터 정리 완료 (메모리 기반)');
+      console.log('🧹 자정 데이터 정리 완료 (로컬 저장소 포함)');
     } catch (error) {
       console.error('❌ 데이터 삭제 실패:', error);
     }

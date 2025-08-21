@@ -1,6 +1,7 @@
 import { socketService } from './socketService';
 import { serverConfig } from '../config/serverConfig';
 import { userSessionManager } from './userSessionManager';
+import { chatStorageService, StoredMessage } from './chatStorageService';
 
 interface Message {
   id: string;
@@ -19,6 +20,8 @@ interface SocketChatService {
   sendTyping: (roomId: string, isTyping: boolean) => void;
   onUserJoined: (callback: (data: any) => void) => void;
   onUserLeft: (callback: (data: any) => void) => void;
+  loadStoredMessages: (roomId: string) => Promise<Message[]>;
+  saveMessageToStorage: (roomId: string, message: Message) => Promise<void>;
 }
 
 class SocketChatManager implements SocketChatService {
@@ -46,6 +49,9 @@ class SocketChatManager implements SocketChatService {
       };
 
       console.log('🔍 변환된 메시지:', JSON.stringify(message, null, 2));
+
+      // 받은 메시지를 로컬 저장소에 저장
+      this.saveMessageToStorage(message.roomId, message);
 
       if (this.messageCallback) {
         this.messageCallback(message);
@@ -122,15 +128,29 @@ class SocketChatManager implements SocketChatService {
 
   // 메시지 전송
   sendMessage(roomId: string, text: string): void {
-    const message = {
+    const messageId = Date.now().toString();
+    const timestamp = new Date().toISOString();
+    
+    const socketMessage = {
       text,
       userId: this.currentUserId,
-      timestamp: new Date().toISOString(),
-      messageId: Date.now().toString(),
+      timestamp,
+      messageId,
     };
 
-    console.log('💬 Socket 메시지 전송:', message);
-    socketService.sendMessage(roomId, message);
+    // 내 메시지를 로컬 저장소에 저장
+    const myMessage: Message = {
+      id: messageId,
+      text,
+      sender: 'me',
+      timestamp,
+      roomId,
+    };
+    
+    this.saveMessageToStorage(roomId, myMessage);
+
+    console.log('💬 Socket 메시지 전송:', socketMessage);
+    socketService.sendMessage(roomId, socketMessage);
   }
 
   // 메시지 수신 콜백
@@ -176,6 +196,59 @@ class SocketChatManager implements SocketChatService {
   // 연결 상태 확인
   isConnected(): boolean {
     return socketService.isConnected();
+  }
+
+  // 로컬 저장소에서 메시지 불러오기
+  async loadStoredMessages(roomId: string): Promise<Message[]> {
+    try {
+      const storedMessages = await chatStorageService.getMessages(roomId);
+      const messages: Message[] = storedMessages.map(stored => ({
+        id: stored.id,
+        text: stored.text,
+        sender: stored.sender,
+        timestamp: stored.timestamp,
+        roomId: stored.roomId,
+      }));
+      
+      console.log(`📚 로컬에서 ${roomId}의 메시지 ${messages.length}개 불러옴`);
+      return messages;
+    } catch (error) {
+      console.error('❌ 로컬 메시지 불러오기 실패:', error);
+      return [];
+    }
+  }
+
+  // 메시지를 로컬 저장소에 저장
+  async saveMessageToStorage(roomId: string, message: Message): Promise<void> {
+    try {
+      const storedMessage: StoredMessage = {
+        id: message.id,
+        text: message.text,
+        sender: message.sender,
+        timestamp: message.timestamp,
+        roomId: message.roomId,
+        status: 'read',
+      };
+      
+      await chatStorageService.saveMessage(roomId, storedMessage);
+      
+      // 채팅방 마지막 메시지 업데이트
+      await chatStorageService.updateLastMessage(roomId, message.text, message.timestamp);
+      
+      console.log(`💾 로컬 저장 완료: ${roomId}에 메시지 저장`);
+    } catch (error) {
+      console.error('❌ 로컬 메시지 저장 실패:', error);
+    }
+  }
+
+  // 채팅방 나가기 시 로컬 데이터 삭제
+  async deleteChatRoomData(roomId: string): Promise<void> {
+    try {
+      await chatStorageService.deleteChatRoom(roomId);
+      console.log(`🗑️ 로컬 데이터 삭제 완료: ${roomId}`);
+    } catch (error) {
+      console.error('❌ 로컬 데이터 삭제 실패:', error);
+    }
   }
 }
 

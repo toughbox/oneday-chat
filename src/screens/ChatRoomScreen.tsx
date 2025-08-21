@@ -64,34 +64,33 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
         // 읽지 않은 메시지 수 초기화
         chatRoomManager.resetUnreadCount(roomId);
         
-        // 이전 메시지 수신 리스너 등록
-        socketChatService.onPreviousMessages((data) => {
-          console.log('📚 이전 메시지 수신:', data);
-          if (data.roomId === roomId) {
-            const previousMessages: Message[] = data.messages.map((msg: any) => ({
-              id: msg.messageId || `prev_${msg.messageId || Date.now()}_${Math.random()}`, // 고유 ID 생성
-              text: msg.message,
-              isMyMessage: msg.userId === userSessionManager.getUserId(),
-              timestamp: new Date(msg.timestamp),
-              status: 'read',
-            }));
-            
-            console.log(`📚 이전 메시지 ${previousMessages.length}개 화면에 표시`);
-            // 중복 메시지 방지: 이미 있는 메시지 ID와 비교
-            setMessages(prev => {
-              const existingIds = new Set(prev.map(m => m.text + m.timestamp.getTime()));
-              const newMessages = previousMessages.filter(msg => 
-                !existingIds.has(msg.text + msg.timestamp.getTime())
-              );
-              return [...prev, ...newMessages];
-            });
-            
-            // 스크롤을 맨 아래로
-            setTimeout(() => {
-              scrollViewRef.current?.scrollToEnd({ animated: true });
-            }, 100);
+        // 로컬 저장소에서 이전 메시지 불러오기
+        const loadStoredMessages = async () => {
+          try {
+            const storedMessages = await socketChatService.loadStoredMessages(roomId);
+            if (storedMessages.length > 0) {
+              const previousMessages: Message[] = storedMessages.map((msg) => ({
+                id: msg.id,
+                text: msg.text,
+                isMyMessage: msg.sender === 'me',
+                timestamp: new Date(msg.timestamp),
+                status: 'read',
+              }));
+              
+              console.log(`📚 로컬에서 ${previousMessages.length}개 메시지 불러옴`);
+              setMessages(previousMessages);
+              
+              // 스크롤을 맨 아래로
+              setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+              }, 100);
+            }
+          } catch (error) {
+            console.error('❌ 로컬 메시지 불러오기 실패:', error);
           }
-        });
+        };
+        
+        await loadStoredMessages();
 
         // 메시지 수신 리스너 등록
         socketChatService.onMessage((message: any) => {
@@ -198,7 +197,7 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
     setInputText('');
 
     try {
-      // Socket.io로 메시지 전송
+      // Socket.io로 메시지 전송 (이미 내부에서 로컬 저장소에 저장됨)
       socketChatService.sendMessage(roomId, messageText);
 
       // 전송 완료 상태로 업데이트
@@ -211,7 +210,7 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
       // 대화방 목록의 마지막 메시지 업데이트
       chatRoomManager.updateLastMessage(roomId, messageText, new Date());
 
-      console.log('📤 메시지 전송 완료:', messageText);
+      console.log('📤 메시지 전송 완료 (로컬 저장됨):', messageText);
 
     } catch (error) {
       console.error('❌ 메시지 전송 실패:', error);
@@ -258,7 +257,7 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
         {
           text: '나가기',
           style: 'destructive',
-          onPress: () => {
+          onPress: async () => {
             console.log('🚪 대화방 나가기 시작...');
             
             // 1. Socket.io 서버에 방 나가기 요청
@@ -267,11 +266,19 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
               console.log('✅ Socket.io 방 나가기 요청 완료:', roomId);
             }
             
-            // 2. 대화방 목록에서도 제거 (스와이프 나가기와 동일)
+            // 2. 로컬 저장소에서 채팅 데이터 삭제
+            try {
+              await socketChatService.deleteChatRoomData(roomId);
+              console.log('✅ 로컬 채팅 데이터 삭제 완료:', roomId);
+            } catch (error) {
+              console.error('❌ 로컬 데이터 삭제 실패:', error);
+            }
+            
+            // 3. 대화방 목록에서도 제거 (스와이프 나가기와 동일)
             console.log('🗑️ 대화방 목록에서 제거:', roomId);
             chatRoomManager.removeChatRoom(roomId);
             
-            // 3. 화면 이동
+            // 4. 화면 이동
             setTimeout(() => {
               navigation?.goBack();
             }, 100);

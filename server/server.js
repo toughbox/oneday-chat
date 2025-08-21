@@ -20,13 +20,13 @@ const io = new Server(httpServer, {
   }
 });
 
-// 서버 상태 관리
+// 서버 상태 관리 (메시지 저장 제거)
 const serverState = {
   connectedUsers: new Map(), // socketId -> userInfo
   waitingUsers: new Map(),   // userId -> userInfo
   activeRooms: new Map(),    // roomId -> { users: [], createdAt: Date }
   userRooms: new Map(),      // userId -> Set<roomId> (사용자가 참여 중인 방 목록)
-  roomMessages: new Map(),   // roomId -> Message[] (방별 메시지 저장)
+  // roomMessages: new Map() - 제거됨: 클라이언트에서 로컬 저장 사용
 };
 
 // 기본 라우트
@@ -164,15 +164,8 @@ io.on('connection', (socket) => {
       console.log(`📝 ${user.nickname}의 활성 방 목록 업데이트:`, Array.from(serverState.userRooms.get(user.userId)));
     }
 
-    // 이전 메시지 전송 (재입장 시)
-    const previousMessages = serverState.roomMessages.get(roomId) || [];
-    if (previousMessages.length > 0) {
-      console.log(`📚 ${roomId}의 이전 메시지 ${previousMessages.length}개 전송`);
-      socket.emit('previous_messages', {
-        roomId,
-        messages: previousMessages
-      });
-    }
+    // 이전 메시지 전송 제거 - 클라이언트에서 로컬 저장소 사용
+    // 더 이상 서버에서 메시지를 저장하지 않으므로 이전 메시지 전송 불필요
     
     // 다른 사용자에게 입장 알림
     socket.to(roomId).emit('user_joined', {
@@ -222,21 +215,17 @@ io.on('connection', (socket) => {
     console.log(`✅ ${roomId}에서 ${user?.nickname} 방 나가기 완료`);
   });
 
-  // 메시지 전송
+  // 메시지 전송 (저장 로직 제거 - 단순 중계만)
   socket.on('send_message', (data) => {
-    const { roomId, message, timestamp } = data;
+    const { roomId, message, timestamp, messageId } = data;
     const user = serverState.connectedUsers.get(socket.id);
     
-    console.log(`💬 메시지 전송: ${user?.nickname} -> ${roomId}: ${message}`);
+    console.log(`💬 메시지 중계: ${user?.nickname} -> ${roomId}: ${message}`);
     
-    // 메시지 저장
-    if (!serverState.roomMessages.has(roomId)) {
-      serverState.roomMessages.set(roomId, []);
-    }
-    
+    // 메시지 데이터 구성 (저장하지 않고 바로 전달)
     const messageData = {
-      messageId: uuidv4(),
-      roomId: roomId,  // roomId 추가!
+      messageId: messageId || uuidv4(),
+      roomId: roomId,
       userId: user?.userId,
       nickname: user?.nickname,
       message,
@@ -244,10 +233,9 @@ io.on('connection', (socket) => {
       type: 'received'
     };
     
-    serverState.roomMessages.get(roomId).push(messageData);
-    console.log(`💾 메시지 저장: ${roomId}에 메시지 ${serverState.roomMessages.get(roomId).length}개`);
+    console.log(`📡 메시지 중계 완료: ${roomId}에 메시지 전달`);
     
-    // 같은 방의 다른 사용자들에게 메시지 전달
+    // 같은 방의 다른 사용자들에게 메시지 전달 (저장 없이 중계만)
     socket.to(roomId).emit('receive_message', messageData);
   });
 
@@ -374,11 +362,11 @@ function scheduleReset() {
       timestamp: new Date().toISOString()
     });
     
-    // 서버 상태 초기화
+    // 서버 상태 초기화 (메시지 저장소 제거로 roomMessages 초기화 불필요)
     serverState.waitingUsers.clear();
     serverState.activeRooms.clear();
     serverState.userRooms.clear();
-    serverState.roomMessages.clear(); // 메시지도 초기화
+    // roomMessages.clear() - 제거됨: 더 이상 서버에서 메시지 저장하지 않음
     
     // 다음 자정으로 다시 스케줄링
     scheduleReset();
