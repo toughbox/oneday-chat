@@ -80,25 +80,24 @@ function getActivePartners(userId) {
 
 // Socket.io 연결 처리
 io.on('connection', (socket) => {
-  console.log(`🔌 새 클라이언트 연결: ${socket.id}`);
+  console.log('🔌 새 클라이언트 연결: ' + socket.id);
 
   // 사용자 등록
   socket.on('register_user', (userInfo) => {
-    console.log(`👤 사용자 등록: ${userInfo.nickname} (${socket.id})`);
-    serverState.connectedUsers.set(socket.id, {
-      ...userInfo,
+    console.log('👤 사용자 등록: ' + userInfo.nickname + ' (' + socket.id + ')');
+    serverState.connectedUsers.set(socket.id, Object.assign({}, userInfo, {
       socketId: socket.id,
       connectedAt: new Date()
-    });
+    }));
   });
 
   // 매칭 요청
   socket.on('request_match', (userInfo) => {
-    console.log(`🔍 매칭 요청: ${userInfo.nickname} (${userInfo.mood})`);
+    console.log('🔍 매칭 요청: ' + userInfo.nickname + ' (' + userInfo.mood + ')');
     
     // 중복 검증: 이미 대기열에 있는 사용자인지 확인
     if (serverState.waitingUsers.has(userInfo.userId)) {
-      console.log(`⚠️ 중복 매칭 요청 감지: ${userInfo.nickname} (${userInfo.userId})`);
+      console.log('⚠️ 중복 매칭 요청 감지: ' + userInfo.nickname + ' (' + userInfo.userId + ')');
       socket.emit('match_error', { 
         message: '이미 매칭 대기 중입니다.',
         code: 'DUPLICATE_REQUEST'
@@ -106,22 +105,22 @@ io.on('connection', (socket) => {
       return;
     }
     
-    // 중복 검증: 이미 활성 대화방에 있는 사용자인지 확인
-    if (serverState.userRooms.has(userInfo.userId) && serverState.userRooms.get(userInfo.userId).size > 0) {
-      console.log(`⚠️ 활성 대화방 사용자 매칭 요청 감지: ${userInfo.nickname} (${userInfo.userId})`);
+    // 중복 검증: 최대 대화방 개수 확인 (5개 제한)
+    const userActiveRooms = serverState.userRooms.get(userInfo.userId);
+    if (userActiveRooms && userActiveRooms.size >= 5) {
+      console.log('⚠️ 최대 대화방 개수 초과: ' + userInfo.nickname + ' (' + userActiveRooms.size + '/5)');
       socket.emit('match_error', { 
-        message: '이미 대화방에 참여 중입니다.',
-        code: 'ALREADY_IN_ROOM'
+        message: '최대 5개의 대화방까지만 참여할 수 있습니다.',
+        code: 'MAX_ROOMS_EXCEEDED'
       });
       return;
     }
     
     // 현재 사용자를 대기열에 추가
-    const waitingUser = {
-      ...userInfo,
+    const waitingUser = Object.assign({}, userInfo, {
       socketId: socket.id,
       requestedAt: new Date()
-    };
+    });
     serverState.waitingUsers.set(userInfo.userId, waitingUser);
 
     // 매칭 시도
@@ -130,7 +129,7 @@ io.on('connection', (socket) => {
 
   // 매칭 취소
   socket.on('cancel_match', () => {
-    console.log(`❌ 매칭 취소: ${socket.id}`);
+    console.log('❌ 매칭 취소: ' + socket.id);
     const user = serverState.connectedUsers.get(socket.id);
     if (user) {
       serverState.waitingUsers.delete(user.userId);
@@ -140,7 +139,7 @@ io.on('connection', (socket) => {
   // 채팅방 입장
   socket.on('join_room', (data) => {
     const roomId = data.roomId; // 객체에서 roomId 추출
-    console.log(`🏠 채팅방 입장: ${socket.id} -> ${roomId}`);
+    console.log('🏠 채팅방 입장: ' + socket.id + ' -> ' + roomId);
     socket.join(roomId);
     
     // 방 정보 업데이트
@@ -177,7 +176,7 @@ io.on('connection', (socket) => {
   // 채팅방 나가기
   socket.on('leave_room', (data) => {
     const roomId = data.roomId; // 객체에서 roomId 추출
-    console.log(`🚪 채팅방 나가기: ${socket.id} -> ${roomId}`);
+    console.log('🚪 채팅방 나가기: ' + socket.id + ' -> ' + roomId);
     socket.leave(roomId);
     
     const user = serverState.connectedUsers.get(socket.id);
@@ -187,7 +186,7 @@ io.on('connection', (socket) => {
     if (room) {
       room.users = room.users.filter(u => u.socketId !== socket.id);
       // 방이 비어있어도 삭제하지 않음 (12시까지 유지)
-      console.log(`📝 ${roomId}에서 사용자 제거, 현재 사용자 수: ${room.users.length}`);
+      console.log('📝 ' + roomId + '에서 사용자 제거, 현재 사용자 수: ' + room.users.length);
     }
     
     // 사용자의 활성 방 목록에서 제거
@@ -220,7 +219,7 @@ io.on('connection', (socket) => {
     const { roomId, message, timestamp, messageId } = data;
     const user = serverState.connectedUsers.get(socket.id);
     
-    console.log(`💬 메시지 중계: ${user?.nickname} -> ${roomId}: ${message}`);
+    console.log('💬 메시지 중계: ' + (user ? user.nickname : 'unknown') + ' -> ' + roomId + ': ' + message);
     
     // 메시지 데이터 구성 (저장하지 않고 바로 전달)
     const messageData = {
@@ -253,7 +252,7 @@ io.on('connection', (socket) => {
 
   // 연결 해제
   socket.on('disconnect', () => {
-    console.log(`🔌 클라이언트 연결 해제: ${socket.id}`);
+    console.log('🔌 클라이언트 연결 해제: ' + socket.id);
     
     const user = serverState.connectedUsers.get(socket.id);
     if (user) {
@@ -264,12 +263,12 @@ io.on('connection', (socket) => {
       serverState.activeRooms.forEach((room, roomId) => {
         room.users = room.users.filter(u => u.socketId !== socket.id);
         // 방이 비어있어도 삭제하지 않음 (12시까지 유지)
-        console.log(`📝 ${roomId}에서 연결 해제된 사용자 제거, 현재 사용자 수: ${room.users.length}`);
+        console.log('📝 ' + roomId + '에서 연결 해제된 사용자 제거, 현재 사용자 수: ' + room.users.length);
       });
       
       // 사용자의 활성 방 목록 삭제
       serverState.userRooms.delete(user.userId);
-      console.log(`🧹 ${user.nickname}의 모든 활성 방 목록 삭제`);
+      console.log('🧹 ' + user.nickname + '의 모든 활성 방 목록 삭제');
       
       // 연결된 사용자 목록에서 제거
       serverState.connectedUsers.delete(socket.id);
@@ -281,7 +280,7 @@ io.on('connection', (socket) => {
 function tryMatch(socket, currentUser) {
   // 현재 사용자와 이미 대화 중인 파트너들 가져오기
   const currentUserPartners = getActivePartners(currentUser.userId);
-  console.log(`🔍 ${currentUser.nickname}의 현재 대화 파트너들:`, Array.from(currentUserPartners));
+  console.log('🔍 ' + currentUser.nickname + '의 현재 대화 파트너들:', Array.from(currentUserPartners));
   
   const waitingUsers = Array.from(serverState.waitingUsers.values())
     .filter(user => {
@@ -290,7 +289,7 @@ function tryMatch(socket, currentUser) {
       
       // 이미 대화 중인 파트너 제외
       if (currentUserPartners.has(user.userId)) {
-        console.log(`⏭️ ${user.nickname}는 이미 ${currentUser.nickname}과 대화 중이므로 제외`);
+        console.log('⏭️ ' + user.nickname + '는 이미 ' + currentUser.nickname + '과 대화 중이므로 제외');
         return false;
       }
       
@@ -298,11 +297,11 @@ function tryMatch(socket, currentUser) {
     });
 
   if (waitingUsers.length === 0) {
-    console.log(`⏳ 매칭 대기 중: ${currentUser.nickname} (사용 가능한 파트너 없음)`);
+    console.log('⏳ 매칭 대기 중: ' + currentUser.nickname + ' (사용 가능한 파트너 없음)');
     return;
   }
 
-  console.log(`👥 매칭 가능한 사용자들: ${waitingUsers.map(u => u.nickname).join(', ')}`);
+  console.log('👥 매칭 가능한 사용자들: ' + waitingUsers.map(function(u) { return u.nickname; }).join(', '));
 
   // 감정 기반 매칭 (같은 감정끼리 우선)
   let matchedUser = waitingUsers.find(user => user.mood === currentUser.mood);
@@ -313,9 +312,9 @@ function tryMatch(socket, currentUser) {
   }
 
   // 매칭 성공
-  const roomId = `room_${uuidv4()}`;
-  console.log(`💫 매칭 성공: ${currentUser.nickname} ↔ ${matchedUser.nickname} (${roomId})`);
-  console.log(`📊 서버 상태 - 대기: ${serverState.waitingUsers.size - 2}명, 활성방: ${serverState.activeRooms.size + 1}개`);
+  const roomId = 'room_' + uuidv4();
+  console.log('💫 매칭 성공: ' + currentUser.nickname + ' ↔ ' + matchedUser.nickname + ' (' + roomId + ')');
+  console.log('📊 서버 상태 - 대기: ' + (serverState.waitingUsers.size - 2) + '명, 활성방: ' + (serverState.activeRooms.size + 1) + '개');
 
   // 대기열에서 제거
   serverState.waitingUsers.delete(currentUser.userId);
@@ -323,23 +322,30 @@ function tryMatch(socket, currentUser) {
 
   // 매칭 결과 전송
   const matchData = {
-    roomId,
+    roomId: roomId,
     partnerNickname: matchedUser.nickname,
+    partnerUserId: matchedUser.userId,
     partnerMood: matchedUser.mood,
     matchedAt: new Date().toISOString()
   };
 
   socket.emit('match_found', {
-    ...matchData,
-    partnerNickname: matchedUser.nickname
+    roomId: matchData.roomId,
+    partnerNickname: matchedUser.nickname,
+    partnerUserId: matchedUser.userId,
+    partnerMood: matchData.partnerMood,
+    matchedAt: matchData.matchedAt
   });
 
   // 상대방에게도 매칭 결과 전송
   const partnerSocket = io.sockets.sockets.get(matchedUser.socketId);
   if (partnerSocket) {
     partnerSocket.emit('match_found', {
-      ...matchData,
-      partnerNickname: currentUser.nickname
+      roomId: matchData.roomId,
+      partnerNickname: currentUser.nickname,
+      partnerUserId: currentUser.userId,
+      partnerMood: matchData.partnerMood,
+      matchedAt: matchData.matchedAt
     });
   }
 }
@@ -378,10 +384,10 @@ function scheduleReset() {
 // 서버 시작
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 OneDay Chat Socket.io 서버 시작`);
-  console.log(`📡 포트: ${PORT}`);
-  console.log(`🌐 모든 IP에서 접근 가능 (0.0.0.0:${PORT})`);
-  console.log(`🔗 상태 확인: http://localhost:${PORT}/status`);
+  console.log('🚀 OneDay Chat Socket.io 서버 시작');
+  console.log('📡 포트: ' + PORT);
+  console.log('🌐 모든 IP에서 접근 가능 (0.0.0.0:' + PORT + ')');
+  console.log('🔗 상태 확인: http://localhost:' + PORT + '/status');
   
   // 자정 리셋 스케줄링 시작
   scheduleReset();

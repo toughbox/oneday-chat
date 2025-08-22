@@ -22,12 +22,13 @@ interface Props {
       roomId?: string;
       partnerId?: string;
       partnerNickname?: string;
+      partnerUserId?: string;
     };
   };
 }
 
 const MatchingResultScreen: React.FC<Props> = ({ navigation, route }) => {
-  const { success, elapsedTime = 0, roomId, partnerId, partnerNickname } = route.params;
+  const { success, elapsedTime = 0, roomId, partnerId, partnerNickname, partnerUserId } = route.params;
   const [partner, setPartner] = useState<any>(null);
   
   // 애니메이션 값들
@@ -58,7 +59,8 @@ const MatchingResultScreen: React.FC<Props> = ({ navigation, route }) => {
           avatar: randomAvatar,
           welcomeMessage: randomWelcomeMessage,
           roomId: roomId,
-          partnerId: partnerId
+          partnerId: partnerId,
+          partnerUserId: partnerUserId
         });
       } else {
         // 기본값 (테스트용)
@@ -107,6 +109,7 @@ const MatchingResultScreen: React.FC<Props> = ({ navigation, route }) => {
         id: roomId,
         partnerName: partner.name,
         partnerNickname: partner.name,
+        partnerUserId: partner.partnerUserId,
         avatar: partner.avatar,
         roomId: roomId,
       });

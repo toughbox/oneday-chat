@@ -41,13 +41,15 @@ const ChatRoomListScreen: React.FC<Props> = ({ navigation, route }) => {
   useEffect(() => {
     console.log('🏠 대화방 목록 화면 초기화');
     
-    // 초기 대화방 목록 설정
-    setChatRooms(chatRoomManager.getChatRooms());
+    // 초기 대화방 목록 설정 (활성 대화방만)
+    setChatRooms(chatRoomManager.getChatRooms().filter(room => room.isActive));
     
     // 대화방 변경 리스너 등록
     chatRoomManager.onChatRoomsChange((updatedRooms) => {
       console.log('🔄 대화방 목록 업데이트:', updatedRooms.length);
-      setChatRooms(updatedRooms);
+      // 활성 대화방만 표시
+      const activeRooms = updatedRooms.filter(room => room.isActive);
+      setChatRooms(activeRooms);
     });
     
     return () => {

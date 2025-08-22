@@ -1,6 +1,7 @@
 import { socketService } from './socketService';
 import { fcmService } from './fcmService';
 import { userSessionManager } from './userSessionManager';
+import { chatRoomManager } from './chatRoomManager';
 import { Alert } from 'react-native';
 
 interface SocketMatchingService {
@@ -30,6 +31,25 @@ class SocketMatchingManager implements SocketMatchingService {
       console.log('💫 Socket 매칭 성공 이벤트 수신:', data);
       this.isMatching = false;
       
+      // 중복 매칭 체크: ID 기반 또는 닉네임 기반으로 확인
+      const isDuplicateById = data.partnerUserId && chatRoomManager.hasActiveRoomWithPartner(data.partnerUserId);
+      const isDuplicateByNickname = data.partnerNickname && chatRoomManager.hasActiveRoomWithPartnerNickname(data.partnerNickname);
+      
+      if (isDuplicateById || isDuplicateByNickname) {
+        console.log('⚠️ 중복 매칭 감지!', { 
+          partnerUserId: data.partnerUserId, 
+          partnerNickname: data.partnerNickname,
+          duplicateById: isDuplicateById,
+          duplicateByNickname: isDuplicateByNickname
+        });
+        Alert.alert(
+          '중복 매칭',
+          `${data.partnerNickname || '해당 사용자'}와 이미 진행 중인 대화가 있습니다.\n기존 대화방을 확인해주세요.`,
+          [{ text: '확인', style: 'default' }]
+        );
+        return; // 매칭 콜백 실행하지 않음
+      }
+      
       if (this.matchFoundCallback) {
         console.log('📞 매칭 콜백 실행');
         this.matchFoundCallback(data);
@@ -49,8 +69,8 @@ class SocketMatchingManager implements SocketMatchingService {
       // 에러 메시지를 사용자에게 표시
       if (error.code === 'DUPLICATE_REQUEST') {
         Alert.alert('매칭 오류', '이미 매칭 대기 중입니다.');
-      } else if (error.code === 'ALREADY_IN_ROOM') {
-        Alert.alert('매칭 오류', '이미 대화방에 참여 중입니다.');
+      } else if (error.code === 'MAX_ROOMS_EXCEEDED') {
+        Alert.alert('매칭 불가', '최대 5개의 대화방까지만 참여할 수 있습니다.\n기존 대화를 종료한 후 새로운 매칭을 시도해주세요.');
       } else {
         Alert.alert('매칭 오류', error.message || '알 수 없는 오류가 발생했습니다.');
       }
@@ -63,13 +83,30 @@ class SocketMatchingManager implements SocketMatchingService {
   // 매칭 요청
   async requestMatch(interests: string[] = [], mood: string = ''): Promise<boolean> {
     try {
-      console.log('🔍 Socket 매칭 요청 시작');
+      console.log('🔍 Socket 매칭 요청 시작...');
 
       // 이미 매칭 중인지 확인
       if (this.isMatching) {
         console.log('⚠️ 이미 매칭 중입니다');
+        Alert.alert('매칭 오류', '이미 매칭 요청 중입니다.');
         return false;
       }
+
+      // 최대 대화방 개수 확인 (5개 제한)
+      const activeRoomCount = chatRoomManager.getActiveRoomCount();
+      const maxRoomCount = chatRoomManager.getMaxRoomCount();
+      
+      if (activeRoomCount >= maxRoomCount) {
+        console.log(`⚠️ 최대 대화방 개수 초과: ${activeRoomCount}/${maxRoomCount}`);
+        Alert.alert(
+          '매칭 불가', 
+          `최대 ${maxRoomCount}개의 대화방까지만 참여할 수 있습니다.\n기존 대화를 종료한 후 새로운 매칭을 시도해주세요.`,
+          [{ text: '확인', style: 'default' }]
+        );
+        return false;
+      }
+
+      console.log(`📊 현재 활성 대화방: ${activeRoomCount}/${maxRoomCount}`);
 
       // 서버 연결 확인/시도
       if (!socketService.isConnected()) {
@@ -148,18 +185,18 @@ class SocketMatchingManager implements SocketMatchingService {
 
   // 임시 닉네임 생성
   private generateNickname(): string {
-    const adjectives = ['밤하늘', '새벽', '황혼', '달빛', '별빛'];
-    const nouns = ['여행자', '방랑자', '탐험가', '몽상가', '관찰자'];
+    const adjectives = ['신비한', '빛나는', '조용한', '따뜻한', '차가운', '밝은', '어두운', '깊은'];
+    const nouns = ['별', '달', '바람', '물결', '그림자', '빛', '꿈', '여행자'];
     const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
     const noun = nouns[Math.floor(Math.random() * nouns.length)];
-    const num = Math.floor(Math.random() * 900) + 100;
-    return `${adj}${noun}${num}`;
+    const number = Math.floor(Math.random() * 10000);
+    return `${adj}${noun}_${number}`;
   }
 
-  // 서버 URL 설정 (홈서버 IP 변경시)
+  // 서버 URL 설정
   setServerUrl(url: string): void {
     this.serverUrl = url;
-    console.log('🏠 홈서버 URL 변경:', url);
+    console.log('🔗 Socket 매칭 서버 URL 설정:', url);
   }
 
   // 연결 상태 확인

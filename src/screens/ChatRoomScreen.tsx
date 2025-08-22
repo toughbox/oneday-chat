@@ -274,9 +274,9 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
               console.error('❌ 로컬 데이터 삭제 실패:', error);
             }
             
-            // 3. 대화방 목록에서도 제거 (스와이프 나가기와 동일)
-            console.log('🗑️ 대화방 목록에서 제거:', roomId);
-            chatRoomManager.removeChatRoom(roomId);
+            // 3. 대화방을 비활성화 (완전 삭제하지 않고 비활성화)
+            console.log('🔒 대화방 비활성화:', roomId);
+            chatRoomManager.deactivateChatRoom(roomId);
             
             // 4. 화면 이동
             setTimeout(() => {
