@@ -41,6 +41,14 @@ class SocketManager implements SocketService {
         this.socket.on('connect', () => {
           console.log('✅ Socket.io 연결 성공:', this.socket?.id);
           
+          // 모든 이벤트 감지를 위한 와일드카드 리스너
+          if (this.socket) {
+            this.socket.onAny((eventName, ...args) => {
+              console.log(`🎯 서버에서 받은 이벤트: ${eventName}`, args);
+              console.log('🔥🔥🔥 SERVER EVENT RECEIVED 🔥🔥🔥', eventName);
+            });
+          }
+          
           // 연결 성공 후 사용자 등록
           if (this.socket) {
             const userInfo = {
@@ -110,6 +118,13 @@ class SocketManager implements SocketService {
 
   // 메시지 전송
   sendMessage(roomId: string, message: any): void {
+    console.log('🔍 소켓 상태 확인:', {
+      socket: !!this.socket,
+      connected: this.socket?.connected,
+      roomId,
+      message
+    });
+    
     if (this.socket && this.socket.connected) {
       const messageData = {
         roomId,
@@ -122,17 +137,29 @@ class SocketManager implements SocketService {
       
       console.log('💬 메시지 전송:', messageData);
       this.socket.emit('send_message', messageData);
+      console.log('🔥🔥🔥 MESSAGE EMITTED TO SERVER 🔥🔥🔥');
     } else {
       console.error('❌ Socket 연결되지 않음 - 메시지 전송 실패');
+      console.error('🔥🔥🔥 SOCKET NOT CONNECTED 🔥🔥🔥');
     }
   }
 
   // 메시지 수신 리스너
   onMessage(callback: (data: any) => void): void {
     if (this.socket) {
-      this.socket.on('receive_message', (data) => {
-        console.log('📨 메시지 수신:', data);
-        callback(data);
+      // 가능한 모든 메시지 이벤트 리스닝 (서버에서 사용할 수 있는 모든 이벤트명)
+      const messageEvents = [
+        'receive_message', 'message', 'new_message', 'chat_message', 
+        'send_message', 'message_received', 'room_message', 'user_message'
+      ];
+      
+      messageEvents.forEach(eventName => {
+        this.socket.off(eventName);
+        this.socket.on(eventName, (data) => {
+          console.log(`📨 socketService ${eventName} 수신:`, data);
+          console.log('🔥🔥🔥 SOCKET SERVICE RECEIVED MESSAGE 🔥🔥🔥');
+          callback(data);
+        });
       });
     }
   }
@@ -140,6 +167,7 @@ class SocketManager implements SocketService {
   // 사용자 입장 리스너
   onUserJoined(callback: (data: any) => void): void {
     if (this.socket) {
+      this.socket.off('user_joined');
       this.socket.on('user_joined', (data) => {
         console.log('👋 사용자 입장:', data);
         callback(data);
@@ -150,6 +178,7 @@ class SocketManager implements SocketService {
   // 사용자 퇴장 리스너
   onUserLeft(callback: (data: any) => void): void {
     if (this.socket) {
+      this.socket.off('user_left');
       this.socket.on('user_left', (data) => {
         console.log('👋 사용자 퇴장:', data);
         callback(data);
@@ -160,6 +189,8 @@ class SocketManager implements SocketService {
   // 매칭 성공 리스너
   onMatchFound(callback: (data: any) => void): void {
     if (this.socket) {
+      // 기존 리스너 제거 후 새로 등록
+      this.socket.off('match_found');
       this.socket.on('match_found', (data) => {
         console.log('💫 매칭 성공:', data);
         callback(data);
@@ -170,6 +201,8 @@ class SocketManager implements SocketService {
   // 매칭 에러 리스너
   onMatchError(callback: (error: any) => void): void {
     if (this.socket) {
+      // 기존 리스너 제거 후 새로 등록
+      this.socket.off('match_error');
       this.socket.on('match_error', (error) => {
         console.log('❌ 매칭 에러:', error);
         callback(error);
@@ -215,6 +248,7 @@ class SocketManager implements SocketService {
   // 타이핑 상태 수신
   onTyping(callback: (data: { roomId: string; userId: string; isTyping: boolean }) => void): void {
     if (this.socket) {
+      this.socket.off('user_typing');
       this.socket.on('user_typing', callback);
     }
   }

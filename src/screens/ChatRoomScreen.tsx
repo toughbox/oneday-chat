@@ -15,6 +15,8 @@ import {
 import { socketChatService } from '../services/socketChatService';
 import { chatRoomManager } from '../services/chatRoomManager';
 import { userSessionManager } from '../services/userSessionManager';
+import { globalMessageHandler } from '../services/globalMessageHandler';
+import { socketService } from '../services/socketService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -54,12 +56,10 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
   useEffect(() => {
     const initializeChat = async () => {
       try {
-        console.log(`🚀 채팅방 ${roomId} 연결 시도...`);
+        console.log(`🚀 채팅방 ${roomId} 초기화 시작...`);
         
-        // 채팅방 입장
-        await socketChatService.joinRoom(roomId);
-        setIsConnected(true);
-        console.log(`✅ 채팅방 ${roomId} 연결 완료`);
+        // 소켓 연결 확인
+        setIsConnected(socketService.isConnected());
         
         // 읽지 않은 메시지 수 초기화
         chatRoomManager.resetUnreadCount(roomId);
@@ -92,11 +92,9 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
         
         await loadStoredMessages();
 
-        // 메시지 수신 리스너 등록
-        socketChatService.onMessage((message: any) => {
-          console.log('📨 메시지 수신 - 전체 데이터:', JSON.stringify(message, null, 2));
-          console.log('📨 메시지 sender:', message.sender);
-          console.log('📨 메시지 text:', message.text);
+        // 글로벌 메시지 핸들러에 이 대화방의 리스너 등록
+        globalMessageHandler.addRoomListener(roomId, (message) => {
+          console.log('📨 글로벌 핸들러로부터 메시지 수신:', JSON.stringify(message, null, 2));
           
           // 내가 보낸 메시지는 이미 화면에 표시되어 있으므로 무시
           if (message.sender === 'me') {
@@ -106,7 +104,7 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
           
           console.log('✅ 상대방 메시지로 처리:', message.text);
           const newMessage: Message = {
-            id: message.id || `new_${Date.now()}_${Math.random()}`, // 고유 ID 생성
+            id: message.id || `new_${Date.now()}_${Math.random()}`,
             text: message.text,
             isMyMessage: false,
             timestamp: new Date(message.timestamp),
@@ -126,21 +124,24 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
             return [...prev, newMessage];
           });
           
-          // 대화방 목록의 마지막 메시지 업데이트
-          chatRoomManager.updateLastMessage(roomId, message.text, new Date(message.timestamp));
-          
           // 스크롤을 맨 아래로
           setTimeout(() => {
             scrollViewRef.current?.scrollToEnd({ animated: true });
           }, 100);
         });
+
+        // 서버에 채팅방 입장 알림 (필요한 경우)
+        if (socketService.isConnected()) {
+          socketService.joinRoom(roomId);
+          console.log(`✅ 서버에 채팅방 ${roomId} 입장 알림`);
+        }
         
       } catch (error) {
-        console.error('❌ 채팅방 연결 실패:', error);
+        console.error('❌ 채팅방 초기화 실패:', error);
         setIsConnected(false);
         Alert.alert(
           '연결 실패',
-          '채팅방에 연결할 수 없습니다. 네트워크를 확인해주세요.',
+          '채팅방을 초기화할 수 없습니다. 네트워크를 확인해주세요.',
           [
             {
               text: '확인',
@@ -153,10 +154,13 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
 
     initializeChat();
 
-    // 컴포넌트 언마운트 시 채팅방 나가기
+    // 컴포넌트 언마운트 시 정리
     return () => {
-      socketChatService.leaveRoom(roomId);
-      console.log(`👋 채팅방 ${roomId} 연결 해제`);
+      // 글로벌 메시지 핸들러에서 이 대화방 리스너 제거 (방은 나가지 않음)
+      globalMessageHandler.removeRoomListener(roomId);
+      
+      // 서버에서 방을 나가지 않음! 대화방 목록에서도 메시지를 받을 수 있도록
+      console.log(`👋 채팅방 ${roomId} 리스너만 제거 (서버에서는 방에 계속 있음)`);
     };
   }, [roomId, navigation]);
 
@@ -197,8 +201,26 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
     setInputText('');
 
     try {
-      // Socket.io로 메시지 전송 (이미 내부에서 로컬 저장소에 저장됨)
-      socketChatService.sendMessage(roomId, messageText);
+      // 직접 소켓으로 메시지 전송
+      const currentUserId = userSessionManager.getUserId();
+      const socketMessage = {
+        text: messageText,
+        userId: currentUserId,
+        timestamp: new Date().toISOString(),
+        messageId: messageId,
+      };
+
+      socketService.sendMessage(roomId, socketMessage);
+      console.log('🔥🔥🔥 MESSAGE SENT TO SERVER 🔥🔥🔥', socketMessage);
+
+      // 로컬 저장소에 저장
+      await socketChatService.saveMessageToStorage(roomId, {
+        id: messageId,
+        text: messageText,
+        sender: 'me',
+        timestamp: new Date().toISOString(),
+        roomId: roomId,
+      });
 
       // 전송 완료 상태로 업데이트
       setMessages(prev =>
@@ -260,9 +282,9 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
           onPress: async () => {
             console.log('🚪 대화방 나가기 시작...');
             
-            // 1. Socket.io 서버에 방 나가기 요청
-            if (socketChatService && roomId) {
-              socketChatService.leaveRoom(roomId);
+            // 1. Socket.io 서버에 방 나가기 요청 (실제 나가기)
+            if (socketService.isConnected() && roomId) {
+              socketService.leaveRoom(roomId);
               console.log('✅ Socket.io 방 나가기 요청 완료:', roomId);
             }
             

@@ -94,6 +94,16 @@ class ChatRoomManagerImpl implements ChatRoomManager {
     }
   }
 
+  // 읽지 않은 메시지 수 증가
+  incrementUnreadCount(roomId: string): void {
+    const room = this.chatRooms.find(r => r.roomId === roomId);
+    if (room) {
+      room.unreadCount += 1;
+      console.log(`📬 대화방 ${roomId} 읽지 않은 메시지 수: ${room.unreadCount}`);
+      this.notifyChange();
+    }
+  }
+
   // 모든 대화방 삭제
   clearAllChatRooms(): void {
     this.chatRooms = [];

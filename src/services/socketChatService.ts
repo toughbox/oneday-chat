@@ -34,29 +34,8 @@ class SocketChatManager implements SocketChatService {
 
   // Socket 이벤트 리스너 초기화
   private initializeListeners(): void {
-    // 메시지 수신
-    socketService.onMessage((data) => {
-      console.log('🔍 socketChatService - 원본 서버 데이터:', JSON.stringify(data, null, 2));
-      console.log('🔍 현재 사용자 ID:', this.currentUserId);
-      console.log('🔍 메시지 발송자 ID:', data.userId);
-      
-      const message: Message = {
-        id: data.messageId || Date.now().toString(),
-        text: data.message,
-        sender: data.userId === this.currentUserId ? 'me' : 'other',
-        timestamp: data.timestamp || new Date().toISOString(),
-        roomId: data.roomId,
-      };
-
-      console.log('🔍 변환된 메시지:', JSON.stringify(message, null, 2));
-
-      // 받은 메시지를 로컬 저장소에 저장
-      this.saveMessageToStorage(message.roomId, message);
-
-      if (this.messageCallback) {
-        this.messageCallback(message);
-      }
-    });
+    // 메시지 수신은 globalMessageHandler에서 처리하므로 여기서는 제거
+    console.log('🔍 socketChatService - 메시지 수신은 globalMessageHandler에서 처리');
 
     // 타이핑 상태 수신
     socketService.onTyping((data) => {

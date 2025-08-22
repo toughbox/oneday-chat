@@ -117,10 +117,10 @@ class SocketMatchingManager implements SocketMatchingService {
           console.error('❌ Socket 서버 연결 실패');
           return false;
         }
-        
-        // 연결 성공 후 이벤트 리스너 초기화
-        this.initializeListeners();
       }
+      
+      // 매칭 요청할 때마다 리스너 초기화 (중복 등록 방지는 socketService에서 처리)
+      this.initializeListeners();
 
       // 사용자 정보 준비 (전역 세션에서 가져오기)
       const userId = userSessionManager.getUserId();

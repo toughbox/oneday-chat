@@ -13,6 +13,9 @@ import {
   Dimensions,
 } from 'react-native';
 import { chatRoomManager, ChatRoom } from '../services/chatRoomManager';
+import { globalMessageHandler } from '../services/globalMessageHandler';
+import { socketService } from '../services/socketService';
+import { serverConfig } from '../config/serverConfig';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -40,6 +43,30 @@ const ChatRoomListScreen: React.FC<Props> = ({ navigation, route }) => {
   // 대화방 목록 초기화 및 변경 리스너 등록
   useEffect(() => {
     console.log('🏠 대화방 목록 화면 초기화');
+    
+    // 글로벌 소켓 연결 및 메시지 핸들러 초기화
+    const initializeGlobalConnection = async () => {
+      try {
+        // 소켓 서버 연결
+        if (!socketService.isConnected()) {
+          console.log('🔌 소켓 서버 연결 시도...');
+          const connected = await socketService.connect(serverConfig.socketUrl);
+          if (connected) {
+            console.log('✅ 소켓 서버 연결 성공');
+          } else {
+            console.log('❌ 소켓 서버 연결 실패');
+          }
+        }
+        
+        // 글로벌 메시지 핸들러 초기화
+        globalMessageHandler.initialize();
+        console.log('🔥🔥🔥 GLOBAL MESSAGE HANDLER INITIALIZED 🔥🔥🔥');
+      } catch (error) {
+        console.error('❌ 글로벌 연결 초기화 실패:', error);
+      }
+    };
+    
+    initializeGlobalConnection();
     
     // 초기 대화방 목록 설정 (활성 대화방만)
     setChatRooms(chatRoomManager.getChatRooms().filter(room => room.isActive));
