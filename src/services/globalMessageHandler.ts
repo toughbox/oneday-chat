@@ -46,12 +46,12 @@ class GlobalMessageHandler {
 
       // 대화방 목록의 마지막 메시지 업데이트
       if (message.sender === 'other') {
-        chatRoomManager.updateLastMessage(message.roomId, message.text, new Date(message.timestamp));
+        await chatRoomManager.updateLastMessage(message.roomId, message.text, new Date(message.timestamp));
         
         // 현재 해당 대화방에 있지 않다면 읽지 않은 메시지 수 증가
         const isInCurrentRoom = this.isCurrentlyInRoom(message.roomId);
         if (!isInCurrentRoom) {
-          chatRoomManager.incrementUnreadCount(message.roomId);
+          await chatRoomManager.incrementUnreadCount(message.roomId);
         }
       }
 
@@ -62,6 +62,40 @@ class GlobalMessageHandler {
         roomListener(message);
       } else {
         console.log(`📝 대화방 ${message.roomId}에 활성 리스너 없음 (로컬 저장만 완료)`);
+      }
+    });
+
+    // 서버에서 이전 메시지 수신 리스너 등록
+    socketService.onPreviousMessages(async (data) => {
+      console.log('📚 서버에서 이전 메시지 수신:', data);
+      console.log('🔥🔥🔥 PREVIOUS MESSAGES RECEIVED 🔥🔥🔥');
+      
+      if (data.roomId && data.messages && Array.isArray(data.messages)) {
+        console.log(`📚 대화방 ${data.roomId}에서 ${data.messages.length}개 메시지 수신`);
+        
+        // 각 메시지를 로컬 저장소에 저장
+        for (const serverMessage of data.messages) {
+          const currentUserId = userSessionManager.getUserId();
+          
+          const message: GlobalMessage = {
+            id: serverMessage.messageId || serverMessage.id || Date.now().toString(),
+            text: serverMessage.message || serverMessage.text,
+            sender: serverMessage.userId === currentUserId ? 'me' : 'other',
+            timestamp: serverMessage.timestamp || new Date().toISOString(),
+            roomId: data.roomId,
+            userId: serverMessage.userId,
+          };
+
+          // 로컬 저장소에 메시지 저장
+          await this.saveMessageToStorage(message);
+          
+          // 대화방 목록의 마지막 메시지 업데이트
+          if (message.sender === 'other') {
+            await chatRoomManager.updateLastMessage(message.roomId, message.text, new Date(message.timestamp));
+          }
+        }
+        
+        console.log(`✅ 대화방 ${data.roomId}의 ${data.messages.length}개 메시지 동기화 완료`);
       }
     });
 

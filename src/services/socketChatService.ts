@@ -162,6 +162,11 @@ class SocketChatManager implements SocketChatService {
     this.previousMessagesCallback = callback;
   }
 
+  // 서버에 이전 메시지 요청
+  requestPreviousMessages(roomId: string): void {
+    socketService.requestPreviousMessages(roomId);
+  }
+
   // 사용자 ID 생성
   private generateUserId(): string {
     return `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

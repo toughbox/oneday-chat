@@ -23,7 +23,8 @@ const { width, height } = Dimensions.get('window');
 
 const WelcomeScreen: React.FC<Props> = ({ navigation }) => {
   const handleAnonymousEntry = () => {
-    navigation.navigate('Nickname');
+    // 기분과 관심사 선택 과정 없이 바로 대화방 목록으로
+    navigation.navigate('ChatRoomList');
   };
 
   return (

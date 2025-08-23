@@ -181,12 +181,17 @@ io.on('connection', (socket) => {
     
     const user = serverState.connectedUsers.get(socket.id);
     
-    // 방 정보 업데이트 (방은 유지, 사용자만 제거)
+    // 방 정보 업데이트 (사용자 제거 후 방이 비어있으면 완전 삭제)
     const room = serverState.activeRooms.get(roomId);
     if (room) {
       room.users = room.users.filter(u => u.socketId !== socket.id);
-      // 방이 비어있어도 삭제하지 않음 (12시까지 유지)
       console.log('📝 ' + roomId + '에서 사용자 제거, 현재 사용자 수: ' + room.users.length);
+      
+      // 방이 비어있으면 완전히 삭제 (앱 종료 후 재실행 시 방이 다시 나타나는 것 방지)
+      if (room.users.length === 0) {
+        serverState.activeRooms.delete(roomId);
+        console.log('🗑️ ' + roomId + ' 방이 비어서 완전히 삭제됨');
+      }
     }
     
     // 사용자의 활성 방 목록에서 제거
@@ -259,11 +264,16 @@ io.on('connection', (socket) => {
       // 대기열에서 제거
       serverState.waitingUsers.delete(user.userId);
       
-      // 활성 방에서 제거 (방은 유지, 사용자만 제거)
+      // 활성 방에서 제거 (사용자 제거 후 방이 비어있으면 완전 삭제)
       serverState.activeRooms.forEach((room, roomId) => {
         room.users = room.users.filter(u => u.socketId !== socket.id);
-        // 방이 비어있어도 삭제하지 않음 (12시까지 유지)
         console.log('📝 ' + roomId + '에서 연결 해제된 사용자 제거, 현재 사용자 수: ' + room.users.length);
+        
+        // 방이 비어있으면 완전히 삭제 (앱 종료 후 재실행 시 방이 다시 나타나는 것 방지)
+        if (room.users.length === 0) {
+          serverState.activeRooms.delete(roomId);
+          console.log('🗑️ ' + roomId + ' 방이 비어서 완전히 삭제됨');
+        }
       });
       
       // 사용자의 활성 방 목록 삭제

@@ -17,6 +17,7 @@ class SocketMatchingManager implements SocketMatchingService {
   private serverUrl: string = 'http://toughbox.iptime.org:3000'; // 홈서버 DDNS 주소
   private currentUserId: string = ''; // 앱 세션 동안 고정
   private currentNickname: string = ''; // 앱 세션 동안 고정
+  private listenersInitialized: boolean = false; // 리스너 중복 등록 방지
 
   constructor() {
     // 초기화는 연결 시에 수행
@@ -119,8 +120,11 @@ class SocketMatchingManager implements SocketMatchingService {
         }
       }
       
-      // 매칭 요청할 때마다 리스너 초기화 (중복 등록 방지는 socketService에서 처리)
-      this.initializeListeners();
+      // 리스너는 한 번만 초기화 (중복 등록 방지)
+      if (!this.listenersInitialized) {
+        this.initializeListeners();
+        this.listenersInitialized = true;
+      }
 
       // 사용자 정보 준비 (전역 세션에서 가져오기)
       const userId = userSessionManager.getUserId();

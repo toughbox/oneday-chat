@@ -262,6 +262,16 @@ class SocketManager implements SocketService {
       });
     }
   }
+
+  // 서버에 이전 메시지 요청
+  requestPreviousMessages(roomId: string): void {
+    if (this.socket && this.socket.connected) {
+      console.log('📚 이전 메시지 요청:', roomId);
+      this.socket.emit('request_previous_messages', { roomId });
+    } else {
+      console.error('❌ Socket 연결되지 않음 - 이전 메시지 요청 실패');
+    }
+  }
 }
 
 // 싱글톤 인스턴스

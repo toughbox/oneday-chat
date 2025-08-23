@@ -62,7 +62,7 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
         setIsConnected(socketService.isConnected());
         
         // 읽지 않은 메시지 수 초기화
-        chatRoomManager.resetUnreadCount(roomId);
+        await chatRoomManager.resetUnreadCount(roomId);
         
         // 로컬 저장소에서 이전 메시지 불러오기
         const loadStoredMessages = async () => {
@@ -156,10 +156,11 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
 
     // 컴포넌트 언마운트 시 정리
     return () => {
-      // 글로벌 메시지 핸들러에서 이 대화방 리스너 제거 (방은 나가지 않음)
+      // 글로벌 메시지 핸들러에서 이 대화방 리스너 제거
       globalMessageHandler.removeRoomListener(roomId);
       
-      // 서버에서 방을 나가지 않음! 대화방 목록에서도 메시지를 받을 수 있도록
+      // 앱이 백그라운드로 전환되거나 화면이 바뀔 때는 서버에서 방을 나가지 않음
+      // (앱 재실행 시 메시지 동기화를 위해 방에 계속 남아있음)
       console.log(`👋 채팅방 ${roomId} 리스너만 제거 (서버에서는 방에 계속 있음)`);
     };
   }, [roomId, navigation]);
@@ -230,7 +231,7 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
       );
       
       // 대화방 목록의 마지막 메시지 업데이트
-      chatRoomManager.updateLastMessage(roomId, messageText, new Date());
+      await chatRoomManager.updateLastMessage(roomId, messageText, new Date());
 
       console.log('📤 메시지 전송 완료 (로컬 저장됨):', messageText);
 
@@ -296,9 +297,9 @@ const ChatRoomScreen: React.FC<Props> = ({ navigation, route }) => {
               console.error('❌ 로컬 데이터 삭제 실패:', error);
             }
             
-            // 3. 대화방을 비활성화 (완전 삭제하지 않고 비활성화)
-            console.log('🔒 대화방 비활성화:', roomId);
-            chatRoomManager.deactivateChatRoom(roomId);
+            // 3. 대화방을 완전히 제거 (AsyncStorage에서도 삭제)
+            console.log('🗑️ 대화방 완전 제거:', roomId);
+            await chatRoomManager.removeChatRoom(roomId);
             
             // 4. 화면 이동
             setTimeout(() => {

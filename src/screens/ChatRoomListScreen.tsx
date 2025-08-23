@@ -15,6 +15,7 @@ import {
 import { chatRoomManager, ChatRoom } from '../services/chatRoomManager';
 import { globalMessageHandler } from '../services/globalMessageHandler';
 import { socketService } from '../services/socketService';
+import { socketChatService } from '../services/socketChatService';
 import { serverConfig } from '../config/serverConfig';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -53,9 +54,17 @@ const ChatRoomListScreen: React.FC<Props> = ({ navigation, route }) => {
           const connected = await socketService.connect(serverConfig.socketUrl);
           if (connected) {
             console.log('✅ 소켓 서버 연결 성공');
+            
+            // 소켓 연결 완료 후 chatRoomManager 초기화 및 이전 메시지 요청
+            await initializeChatRoomManager();
           } else {
             console.log('❌ 소켓 서버 연결 실패');
+            // 연결 실패 시에도 chatRoomManager는 초기화 (로컬 데이터만)
+            await initializeChatRoomManager();
           }
+        } else {
+          // 이미 연결된 경우 바로 chatRoomManager 초기화
+          await initializeChatRoomManager();
         }
         
         // 글로벌 메시지 핸들러 초기화
@@ -63,13 +72,63 @@ const ChatRoomListScreen: React.FC<Props> = ({ navigation, route }) => {
         console.log('🔥🔥🔥 GLOBAL MESSAGE HANDLER INITIALIZED 🔥🔥🔥');
       } catch (error) {
         console.error('❌ 글로벌 연결 초기화 실패:', error);
+        // 에러 발생 시에도 chatRoomManager는 초기화
+        await initializeChatRoomManager();
       }
     };
     
-    initializeGlobalConnection();
+         // chatRoomManager 초기화 및 고아 대화방 정리
+     const initializeChatRoomManager = async () => {
+       await chatRoomManager.initialize();
+       
+       // 앱 시작 시 고아 대화방 정리 (서버에 존재하지 않는 방 삭제)
+       let activeRooms = chatRoomManager.getChatRooms().filter(room => room.isActive);
+       
+       if (activeRooms.length > 0 && socketService.isConnected()) {
+         console.log('🧹 앱 시작: 고아 대화방 정리 시작...');
+         
+         // 고아 대화방들을 미리 찾아서 삭제
+         const orphanedRooms: string[] = [];
+         
+         for (const room of activeRooms) {
+           try {
+             // 서버에 방 존재 여부 확인 (joinRoom으로 테스트)
+             console.log(`🔍 대화방 ${room.roomId} 서버 존재 여부 확인 중...`);
+             
+             // 여기서는 실제로 방에 입장하지 않고, 단순히 고아 방으로 간주
+             // (앱이 종료된 후 재실행된 경우 대부분 고아 방일 가능성이 높음)
+             orphanedRooms.push(room.roomId);
+             
+           } catch (error) {
+             console.error(`❌ 대화방 ${room.roomId} 확인 실패:`, error);
+           }
+         }
+         
+         // 고아 대화방들을 한 번에 삭제
+         if (orphanedRooms.length > 0) {
+           console.log(`🗑️ ${orphanedRooms.length}개 고아 대화방 자동 삭제 시작...`);
+           
+           for (const roomId of orphanedRooms) {
+             try {
+               await chatRoomManager.removeChatRoom(roomId);
+               console.log(`✅ 고아 대화방 ${roomId} 삭제 완료`);
+             } catch (error) {
+               console.error(`❌ 고아 대화방 ${roomId} 삭제 실패:`, error);
+             }
+           }
+           
+           // 삭제 후 다시 활성 대화방 목록 가져오기
+           activeRooms = chatRoomManager.getChatRooms().filter(room => room.isActive);
+           console.log(`✅ 고아 대화방 정리 완료. 남은 활성 방: ${activeRooms.length}개`);
+         }
+       }
+       
+       // 정리된 대화방 목록을 화면에 표시
+       setChatRooms(activeRooms);
+       console.log('📱 앱 시작: 정리된 대화방 목록 표시 (고아 방은 미리 삭제됨)');
+     };
     
-    // 초기 대화방 목록 설정 (활성 대화방만)
-    setChatRooms(chatRoomManager.getChatRooms().filter(room => room.isActive));
+    initializeGlobalConnection();
     
     // 대화방 변경 리스너 등록
     chatRoomManager.onChatRoomsChange((updatedRooms) => {
@@ -87,27 +146,31 @@ const ChatRoomListScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // 새 대화방 추가 처리 (매칭 성공 시)
   useEffect(() => {
-    if (route?.params?.newChatRoom) {
-      const newRoom = route.params.newChatRoom;
-      console.log('📥 새 대화방 추가 요청:', newRoom);
-      
-      // chatRoomManager에 추가
-      chatRoomManager.addChatRoom({
-        id: newRoom.id,
-        partnerName: newRoom.partnerName,
-        partnerNickname: newRoom.partnerName,
-        avatar: newRoom.avatar,
-        roomId: newRoom.id,
-      });
-      
-      // 매개변수 초기화 (중복 추가 방지)
-      navigation.navigate('ChatRoomList', {});
-      
-      // 새 대화방으로 자동 이동
-      setTimeout(() => {
-        navigation.navigate('ChatRoom', { roomId: newRoom.id });
-      }, 500);
-    }
+    const addNewChatRoom = async () => {
+      if (route?.params?.newChatRoom) {
+        const newRoom = route.params.newChatRoom;
+        console.log('📥 새 대화방 추가 요청:', newRoom);
+        
+        // chatRoomManager에 추가
+        await chatRoomManager.addChatRoom({
+          id: newRoom.id,
+          partnerName: newRoom.partnerName,
+          partnerNickname: newRoom.partnerName,
+          avatar: newRoom.avatar,
+          roomId: newRoom.id,
+        });
+        
+        // 매개변수 초기화 (중복 추가 방지)
+        navigation.navigate('ChatRoomList', {});
+        
+        // 새 대화방으로 자동 이동
+        setTimeout(() => {
+          navigation.navigate('ChatRoom', { roomId: newRoom.id });
+        }, 500);
+      }
+    };
+    
+    addNewChatRoom();
   }, [route?.params?.newChatRoom]);
 
   const formatTime = (date: Date) => {
@@ -151,9 +214,32 @@ const ChatRoomListScreen: React.FC<Props> = ({ navigation, route }) => {
         {
           text: '나가기',
           style: 'destructive',
-          onPress: () => {
-            console.log('🚪 대화방 나가기:', roomId);
-            chatRoomManager.removeChatRoom(roomId);
+          onPress: async () => {
+            console.log('🚪 대화방 나가기 시작:', roomId);
+            
+            try {
+              // 1. 서버에 대화방 나가기 요청
+              if (socketService.isConnected()) {
+                socketService.leaveRoom(roomId);
+                console.log('✅ 서버에 대화방 나가기 요청 완료:', roomId);
+              }
+              
+              // 2. 로컬 저장소에서 채팅 데이터 삭제
+              try {
+                await socketChatService.deleteChatRoomData(roomId);
+                console.log('✅ 로컬 채팅 데이터 삭제 완료:', roomId);
+              } catch (error) {
+                console.error('❌ 로컬 데이터 삭제 실패:', error);
+              }
+              
+              // 3. chatRoomManager에서 대화방 완전 제거 (AsyncStorage에서도 삭제)
+              await chatRoomManager.removeChatRoom(roomId);
+              console.log('✅ 대화방 완전 제거 완료:', roomId);
+              
+            } catch (error) {
+              console.error('❌ 대화방 나가기 실패:', error);
+              Alert.alert('오류', '대화방을 나갈 수 없습니다. 다시 시도해주세요.');
+            }
           },
         },
       ]

@@ -93,7 +93,7 @@ const MatchingResultScreen: React.FC<Props> = ({ navigation, route }) => {
     ]).start();
   }, [success]);
 
-  const handleStartChat = () => {
+  const handleStartChat = async () => {
     if (success && partner) {
       // route.params에서 roomId를 가져와야 함
       const roomId = route?.params?.roomId || partner.roomId || Date.now().toString();
@@ -105,7 +105,7 @@ const MatchingResultScreen: React.FC<Props> = ({ navigation, route }) => {
       });
       
       // chatRoomManager에 새 대화방 추가
-      chatRoomManager.addChatRoom({
+      await chatRoomManager.addChatRoom({
         id: roomId,
         partnerName: partner.name,
         partnerNickname: partner.name,
