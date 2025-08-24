@@ -78,55 +78,38 @@ const ChatRoomListScreen: React.FC<Props> = ({ navigation, route }) => {
     };
     
          // chatRoomManager 초기화 및 고아 대화방 정리
-     const initializeChatRoomManager = async () => {
-       await chatRoomManager.initialize();
-       
-       // 앱 시작 시 고아 대화방 정리 (서버에 존재하지 않는 방 삭제)
-       let activeRooms = chatRoomManager.getChatRooms().filter(room => room.isActive);
-       
-       if (activeRooms.length > 0 && socketService.isConnected()) {
-         console.log('🧹 앱 시작: 고아 대화방 정리 시작...');
-         
-         // 고아 대화방들을 미리 찾아서 삭제
-         const orphanedRooms: string[] = [];
-         
-         for (const room of activeRooms) {
-           try {
-             // 서버에 방 존재 여부 확인 (joinRoom으로 테스트)
-             console.log(`🔍 대화방 ${room.roomId} 서버 존재 여부 확인 중...`);
-             
-             // 여기서는 실제로 방에 입장하지 않고, 단순히 고아 방으로 간주
-             // (앱이 종료된 후 재실행된 경우 대부분 고아 방일 가능성이 높음)
-             orphanedRooms.push(room.roomId);
-             
-           } catch (error) {
-             console.error(`❌ 대화방 ${room.roomId} 확인 실패:`, error);
-           }
-         }
-         
-         // 고아 대화방들을 한 번에 삭제
-         if (orphanedRooms.length > 0) {
-           console.log(`🗑️ ${orphanedRooms.length}개 고아 대화방 자동 삭제 시작...`);
-           
-           for (const roomId of orphanedRooms) {
-             try {
-               await chatRoomManager.removeChatRoom(roomId);
-               console.log(`✅ 고아 대화방 ${roomId} 삭제 완료`);
-             } catch (error) {
-               console.error(`❌ 고아 대화방 ${roomId} 삭제 실패:`, error);
-             }
-           }
-           
-           // 삭제 후 다시 활성 대화방 목록 가져오기
-           activeRooms = chatRoomManager.getChatRooms().filter(room => room.isActive);
-           console.log(`✅ 고아 대화방 정리 완료. 남은 활성 방: ${activeRooms.length}개`);
-         }
-       }
-       
-       // 정리된 대화방 목록을 화면에 표시
-       setChatRooms(activeRooms);
-       console.log('📱 앱 시작: 정리된 대화방 목록 표시 (고아 방은 미리 삭제됨)');
-     };
+      const initializeChatRoomManager = async () => {
+        await chatRoomManager.initialize();
+        
+        // 앱 시작 시 활성 대화방 목록 가져오기 (고아 방 정리 없이)
+        let activeRooms = chatRoomManager.getChatRooms().filter(room => room.isActive);
+        
+        if (activeRooms.length > 0) {
+          console.log(`📱 앱 시작: ${activeRooms.length}개 활성 대화방 로드됨`);
+          
+          // 각 대화방에 대해 이전 메시지 요청 (메시지 동기화)
+          if (socketService.isConnected()) {
+            console.log('🔄 대화방 메시지 동기화 시작...');
+            
+            // 약간의 지연 후 메시지 요청 (소켓 연결 안정화를 위해)
+            setTimeout(async () => {
+              for (const room of activeRooms) {
+                try {
+                  console.log(`📥 대화방 ${room.roomId} 이전 메시지 요청...`);
+                  await socketChatService.requestPreviousMessages(room.roomId);
+                } catch (error) {
+                  console.error(`❌ 대화방 ${room.roomId} 메시지 요청 실패:`, error);
+                }
+              }
+              console.log('✅ 모든 대화방 메시지 동기화 완료');
+            }, 1000);
+          }
+        }
+        
+        // 대화방 목록을 화면에 표시
+        setChatRooms(activeRooms);
+        console.log('📱 앱 시작: 대화방 목록 표시 완료');
+      };
     
     initializeGlobalConnection();
     
